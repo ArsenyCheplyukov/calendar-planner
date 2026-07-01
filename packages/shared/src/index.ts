@@ -20,8 +20,8 @@ export interface ParsedPlan {
   title: string;
   durationMinutes: number;
   type: EventType;
-  deadline?: string;
-  hint?: PlanHint;
+  deadline?: string | null;
+  hint?: PlanHint | null;
 }
 
 export interface Slot {

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { PlanInput, type PlanInputResult } from "./components/PlanInput/index.js";
 import { WeekView, type WeekViewBusyMap, type WeekViewWeek } from "./components/WeekView/index.js";
 import styles from "./App.module.css";
 
@@ -7,7 +8,7 @@ type WeekResponse = {
   busy: WeekViewBusyMap;
 };
 
-type State =
+type WeekState =
   | { kind: "loading" }
   | { kind: "ready"; data: WeekResponse }
   | { kind: "error"; message: string };
@@ -32,15 +33,16 @@ function buildWeekUrl(start: string | null): string {
 }
 
 export function App() {
-  const [state, setState] = useState<State>({ kind: "loading" });
+  const [weekState, setWeekState] = useState<WeekState>({ kind: "loading" });
   const [startParam, setStartParam] = useState<string | null>(null);
+  const [planText, setPlanText] = useState("");
 
   const fetchWeek = useCallback(async (start: string | null) => {
-    setState({ kind: "loading" });
+    setWeekState({ kind: "loading" });
     try {
       const res = await fetch(buildWeekUrl(start));
       if (res.status === 401) {
-        setState({
+        setWeekState({
           kind: "error",
           message: "Not authenticated. Run `pnpm auth` to bootstrap credentials.",
         });
@@ -50,9 +52,9 @@ export function App() {
         throw new Error(`HTTP ${res.status}`);
       }
       const data = (await res.json()) as WeekResponse;
-      setState({ kind: "ready", data });
+      setWeekState({ kind: "ready", data });
     } catch (e: unknown) {
-      setState({
+      setWeekState({
         kind: "error",
         message: e instanceof Error ? e.message : String(e),
       });
@@ -81,6 +83,31 @@ export function App() {
     setStartParam(null);
   };
 
+  const handlePlanSubmit = useCallback(
+    async (text: string): Promise<PlanInputResult | null> => {
+      try {
+        const res = await fetch("/api/plan", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text }),
+        });
+        if (res.status === 400) {
+          const body = (await res.json().catch(() => ({}))) as { message?: string };
+          return { error: body.message ?? "Invalid plan" };
+        }
+        if (!res.ok) {
+          const body = (await res.json().catch(() => ({}))) as { message?: string };
+          return { error: body.message ?? `HTTP ${res.status}` };
+        }
+        const body = (await res.json()) as { parsed: unknown };
+        return { parsed: body.parsed };
+      } catch (e) {
+        return { error: e instanceof Error ? e.message : String(e) };
+      }
+    },
+    [],
+  );
+
   return (
     <main className={styles["app"]} data-testid="app">
       <div className={styles["app-inner"]}>
@@ -89,27 +116,35 @@ export function App() {
           Single-user web app for placing plans into Google Calendar.
         </p>
 
-        {state.kind === "loading" && (
-          <div className={styles["status-loading"]} data-testid="week-loading">
-            Loading week…
-          </div>
-        )}
+        <PlanInput
+          text={planText}
+          onTextChange={setPlanText}
+          onSubmit={handlePlanSubmit}
+        />
 
-        {state.kind === "error" && (
-          <div className={styles["status-error"]} data-testid="week-error">
-            {state.message}
-          </div>
-        )}
+        <div style={{ marginTop: "var(--space-6)" }}>
+          {weekState.kind === "loading" && (
+            <div className={styles["status-loading"]} data-testid="week-loading">
+              Loading week…
+            </div>
+          )}
 
-        {state.kind === "ready" && (
-          <WeekView
-            week={state.data.week}
-            busy={state.data.busy}
-            onPrev={handlePrev}
-            onNext={handleNext}
-            onToday={handleToday}
-          />
-        )}
+          {weekState.kind === "error" && (
+            <div className={styles["status-error"]} data-testid="week-error">
+              {weekState.message}
+            </div>
+          )}
+
+          {weekState.kind === "ready" && (
+            <WeekView
+              week={weekState.data.week}
+              busy={weekState.data.busy}
+              onPrev={handlePrev}
+              onNext={handleNext}
+              onToday={handleToday}
+            />
+          )}
+        </div>
       </div>
     </main>
   );

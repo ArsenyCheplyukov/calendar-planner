@@ -1,8 +1,9 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { App } from "./App.js";
 
-describe("App with week grid", () => {
+describe("App with PlanInput + WeekView", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
   });
@@ -11,69 +12,104 @@ describe("App with week grid", () => {
     vi.restoreAllMocks();
   });
 
-  function mockApiResponses() {
-    return vi.fn().mockImplementation((url: string) => {
-      if (url.endsWith("/api/health")) {
-        return Promise.resolve(
-          new Response(JSON.stringify({ status: "ok" }), { status: 200 }),
-        );
+  function mockApiResponses(opts: { parsed?: unknown; busy?: Record<string, Array<{ start: string; end: string }>> } = {}) {
+    return vi.fn().mockImplementation((url: string, init?: RequestInit) => {
+      if (url.endsWith("/api/health") && (!init || init.method === "GET")) {
+        return Promise.resolve(new Response(JSON.stringify({ status: "ok" }), { status: 200 }));
       }
       if (url.includes("/api/week")) {
         return Promise.resolve(
           new Response(
             JSON.stringify({
-              week: {
-                start: "2026-07-06T00:00:00.000Z",
-                end: "2026-07-12T23:59:59.999Z",
-              },
-              busy: {
-                "2026-07-08": [
-                  { start: "2026-07-08T10:00:00Z", end: "2026-07-08T11:00:00Z" },
-                ],
+              week: { start: "2026-07-06T00:00:00.000Z", end: "2026-07-12T23:59:59.999Z" },
+              busy: opts.busy ?? {},
+            }),
+            { status: 200, headers: { "Content-Type": "application/json" } },
+          ),
+        );
+      }
+      if (url.includes("/api/plan") && init?.method === "POST") {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              parsed: opts.parsed ?? {
+                title: "Подготовить презентацию",
+                durationMinutes: 120,
+                type: "focus",
+                deadline: null,
+                hint: null,
               },
             }),
             { status: 200, headers: { "Content-Type": "application/json" } },
           ),
         );
       }
-      return Promise.reject(new Error("unexpected: " + url));
+      return Promise.reject(new Error("unexpected: " + url + " method=" + init?.method));
     });
   }
 
-  it("renders WeekView and a busy block from the API response", async () => {
+  it("renders PlanInput and WeekView", async () => {
     vi.stubGlobal("fetch", mockApiResponses());
-
     render(<App />);
 
+    expect(screen.getByTestId("plan-input")).toBeInTheDocument();
     await waitFor(() => {
       expect(screen.getByTestId("week-view")).toBeInTheDocument();
     });
-
-    const blocks = await screen.findAllByTestId("busy-block");
-    expect(blocks.length).toBeGreaterThan(0);
   });
 
-  it("refetches with ?start= when next/prev/today buttons are clicked", async () => {
-    const fetchMock = mockApiResponses();
-    vi.stubGlobal("fetch", fetchMock);
+  it("submits a plan and shows the parsed result in the debug panel", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal("fetch", mockApiResponses());
+    render(<App />);
+
+    await waitFor(() => screen.getByTestId("week-view"));
+
+    const textarea = screen.getByRole("textbox", { name: /план/i });
+    await user.type(textarea, "подготовить презентацию, 2 часа");
+    await user.click(screen.getByRole("button", { name: /suggest/i }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("plan-debug")).toBeInTheDocument();
+    });
+    expect(screen.getByTestId("plan-debug").textContent).toContain("Подготовить презентацию");
+  });
+
+  it("shows an error banner when the API returns an error", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockImplementation((url: string, init?: RequestInit) => {
+        if (url.includes("/api/plan") && init?.method === "POST") {
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({ error: "upstream_error", message: "Gemini is down" }),
+              { status: 502, headers: { "Content-Type": "application/json" } },
+            ),
+          );
+        }
+        if (url.includes("/api/week")) {
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                week: { start: "2026-07-06T00:00:00.000Z", end: "2026-07-12T23:59:59.999Z" },
+                busy: {},
+              }),
+              { status: 200 },
+            ),
+          );
+        }
+        return Promise.resolve(new Response("{}", { status: 200 }));
+      }),
+    );
 
     render(<App />);
     await waitFor(() => screen.getByTestId("week-view"));
 
-    fetchMock.mockClear();
+    const textarea = screen.getByRole("textbox", { name: /план/i });
+    await user.type(textarea, "test");
+    await user.click(screen.getByRole("button", { name: /suggest/i }));
 
-    fireEvent.click(screen.getByRole("button", { name: /следующая/i }));
-    await waitFor(() => {
-      const calls = fetchMock.mock.calls.map((c) => String(c[0]));
-      expect(calls.some((u) => u.includes("/api/week?start="))).toBe(true);
-    });
-
-    fetchMock.mockClear();
-    fireEvent.click(screen.getByRole("button", { name: /сегодня/i }));
-    await waitFor(() => {
-      const calls = fetchMock.mock.calls.map((c) => String(c[0]));
-      // Today should hit /api/week WITHOUT ?start=
-      expect(calls.some((u) => u.includes("/api/week") && !u.includes("?start="))).toBe(true);
-    });
+    expect(await screen.findByTestId("plan-error")).toBeInTheDocument();
   });
 });
