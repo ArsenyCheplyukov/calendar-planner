@@ -22,6 +22,29 @@
   margin: 0 0 var(--space-6);
 }
 
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-2);
+}
+
+.settings-link {
+  color: var(--color-fg-muted);
+  text-decoration: none;
+  font-size: var(--font-size-sm);
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  transition: background var(--motion-fast) var(--ease-out);
+}
+
+.settings-link:hover {
+  background: var(--color-bg-elevated);
+  color: var(--color-fg);
+}
+
 .status-loading {
   color: var(--color-fg-muted);
   font-style: italic;

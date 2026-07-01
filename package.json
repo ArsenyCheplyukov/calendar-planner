@@ -9,7 +9,9 @@
     "build": "pnpm -r run build",
     "typecheck": "pnpm -r run typecheck",
     "test": "pnpm -r run test",
-    "auth": "pnpm --filter @calendar-planner/api auth"
+    "auth": "pnpm --filter @calendar-planner/api auth",
+    "db:generate": "pnpm --filter @calendar-planner/api db:generate",
+    "db:push": "pnpm --filter @calendar-planner/api db:push"
   },
   "devDependencies": {
     "concurrently": "^9.1.0",

@@ -1,12 +1,15 @@
 import type { FastifyInstance } from "fastify";
 import { parsePlan, type ParsePlanOptions } from "../infrastructure/gemini/parser.js";
 import { suggestSlots, type CalendarClientFactory, type PlanParser } from "../services/suggest-slots.js";
+import type { PreferencesStore } from "../infrastructure/preferences/store.js";
+import { defaultPreferencesStore } from "../infrastructure/preferences/store.js";
 
 export interface PlanRouteOptions {
   geminiApiKey?: string;
   parsePlanFn?: PlanParser;
   calendarClientFactory?: CalendarClientFactory;
   getAccessToken?: () => Promise<string | null>;
+  preferencesStore?: PreferencesStore;
 }
 
 export async function planRoute(
@@ -21,13 +24,7 @@ export async function planRoute(
         });
 
   const getToken: () => Promise<string | null> =
-    opts.getAccessToken ??
-    (async () => {
-      // Fall back to reading from env directly (no refresh)
-      const envToken = process.env["GOOGLE_REFRESH_TOKEN"];
-      if (!envToken) return null;
-      return envToken;
-    });
+    opts.getAccessToken ?? (() => Promise.resolve(null));
 
   app.post<{ Body: { text?: unknown; startDate?: string } }>("/api/plan", async (req, reply) => {
     const text = req.body?.text;
@@ -49,6 +46,7 @@ export async function planRoute(
               throw new Error("calendarClientFactory not provided");
             }),
           getAccessToken: getToken,
+          preferencesStore: opts.preferencesStore ?? defaultPreferencesStore(),
         },
       );
       return { parsed: result.parsed, suggestions: result.suggestions };

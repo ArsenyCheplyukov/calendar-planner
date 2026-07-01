@@ -203,7 +203,12 @@ export function App() {
   return (
     <main className={styles["app"]} data-testid="app">
       <div className={styles["app-inner"]}>
-        <h1 className={styles["app-title"]}>Calendar Planner</h1>
+        <div className={styles["app-header"]}>
+          <h1 className={styles["app-title"]}>Calendar Planner</h1>
+          <a href="/settings" className={styles["settings-link"]} data-testid="settings-link">
+            Settings
+          </a>
+        </div>
         <p className={styles["app-subtitle"]}>
           Single-user web app for placing plans into Google Calendar.
         </p>

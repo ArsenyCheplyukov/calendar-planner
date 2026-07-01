@@ -1,0 +1,23 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+  // The dev.db file lives in the same directory as this schema by default;
+  // DATABASE_URL=file:./dev.db resolves to apps/api/prisma/dev.db.
+}
+
+model Preferences {
+  id                 Int      @id @default(1)
+  workingHoursStart  String   @default("09:00")
+  workingHoursEnd    String   @default("19:00")
+  bufferMinutes      Int      @default(15)
+  typeBiasFocus      String   @default("09:00-12:00")
+  typeBiasMeeting    String   @default("11:00-16:00")
+  typeBiasPersonal   String   @default("any")
+  typeBiasErrand     String   @default("16:00-19:00")
+  blackoutsJson      String   @default("[]")
+  updatedAt          DateTime @updatedAt
+}

@@ -1,6 +1,13 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import type { FastifyInstance } from "fastify";
 import { buildApp } from "../app.js";
+import { DEFAULT_PREFERENCES } from "../domain/scorer.js";
+import type { PreferencesStore } from "../infrastructure/preferences/store.js";
+
+const fakeStore = {
+  getPreferences: async () => DEFAULT_PREFERENCES,
+  updatePreferences: async (partial: Partial<import("@calendar-planner/shared").Preferences>) => ({ ...DEFAULT_PREFERENCES, ...partial }),
+} as unknown as PreferencesStore;
 
 describe("POST /api/plan (suggestions)", () => {
   let originalEnv: NodeJS.ProcessEnv;
@@ -67,7 +74,7 @@ describe("POST /api/plan (suggestions)", () => {
       },
     };
 
-    const app = await buildApp({ calendarClientFactory: () => fakeCalendar });
+    const app = await buildApp({ calendarClientFactory: () => fakeCalendar, preferencesStore: fakeStore });
     const res = await app.inject({
       method: "POST",
       url: "/api/plan",
@@ -87,7 +94,7 @@ describe("POST /api/plan (suggestions)", () => {
   });
 
   it("returns 400 when text is empty", async () => {
-    const app = await buildApp();
+    const app = await buildApp({ preferencesStore: fakeStore });
     const res = await app.inject({ method: "POST", url: "/api/plan", payload: { text: "" } });
     expect(res.statusCode).toBe(400);
     await app.close();
