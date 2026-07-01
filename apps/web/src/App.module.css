@@ -1,0 +1,45 @@
+.app {
+  min-height: 100vh;
+  padding: var(--space-8) var(--layout-gutter);
+}
+
+.app-inner {
+  max-width: var(--layout-content-width);
+  margin: 0 auto;
+}
+
+.app-title {
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: var(--letter-spacing-tight);
+  margin: 0 0 var(--space-2);
+  color: var(--color-fg);
+}
+
+.app-subtitle {
+  color: var(--color-fg-muted);
+  font-size: var(--font-size-base);
+  margin: 0 0 var(--space-6);
+}
+
+.status-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-size: var(--font-size-md);
+}
+
+.status-loading {
+  color: var(--color-fg-muted);
+  font-style: italic;
+}
+
+.status-ok {
+  color: var(--color-success);
+  font-weight: var(--font-weight-semibold);
+}
+
+.status-error {
+  color: var(--color-destructive);
+  font-weight: var(--font-weight-semibold);
+}
