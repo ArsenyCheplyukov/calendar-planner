@@ -35,7 +35,7 @@ describe("Suggestions", () => {
     render(<Suggestions suggestions={sample} onApprove={() => {}} onSelect={() => {}} />);
     const cards = screen.getAllByTestId("suggestion-card");
 
-    expect(within(cards[0]!).getByText(/09:00/)).toBeInTheDocument();
+    expect(within(cards[0]!).getByTestId("suggestion-time")).toHaveTextContent(/09:00/);
     expect(within(cards[0]!).getByText(/фокус/)).toBeInTheDocument();
     expect(within(cards[0]!).getByRole("button", { name: /place here/i })).toBeInTheDocument();
   });

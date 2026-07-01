@@ -7,6 +7,7 @@ import {
   type WeekViewWeek,
   type WeekViewSuggestion,
 } from "./components/WeekView/index.js";
+import { ConfirmModal } from "./components/ConfirmModal/index.js";
 import type { Suggestion, ParsedPlan } from "@calendar-planner/shared";
 import styles from "./App.module.css";
 
@@ -22,8 +23,15 @@ type WeekState =
 
 type PlanState =
   | { kind: "idle" }
-  | { kind: "ready"; parsed: ParsedPlan; suggestions: Suggestion[] }
+  | { kind: "ready"; parsed: ParsedPlan; suggestions: Suggestion[]; originalText: string }
   | { kind: "error"; message: string };
+
+type CreateState =
+  | { kind: "idle" }
+  | { kind: "submitting" }
+  | { kind: "error"; message: string };
+
+type Toast = { id: number; message: string; tone: "success" | "error" };
 
 function todayYmd(): string {
   const d = new Date();
@@ -49,6 +57,17 @@ export function App() {
   const [startParam, setStartParam] = useState<string | null>(null);
   const [planText, setPlanText] = useState("");
   const [planState, setPlanState] = useState<PlanState>({ kind: "idle" });
+  const [pendingSuggestion, setPendingSuggestion] = useState<Suggestion | null>(null);
+  const [createState, setCreateState] = useState<CreateState>({ kind: "idle" });
+  const [toasts, setToasts] = useState<Toast[]>([]);
+
+  const pushToast = useCallback((message: string, tone: Toast["tone"]) => {
+    const id = Date.now() + Math.random();
+    setToasts((t) => [...t, { id, message, tone }]);
+    setTimeout(() => {
+      setToasts((t) => t.filter((x) => x.id !== id));
+    }, 4000);
+  }, []);
 
   const fetchWeek = useCallback(async (start: string | null) => {
     setWeekState({ kind: "loading" });
@@ -120,6 +139,7 @@ export function App() {
           kind: "ready",
           parsed: body.parsed,
           suggestions: body.suggestions,
+          originalText: text,
         });
         return { parsed: body.parsed };
       } catch (e) {
@@ -130,15 +150,47 @@ export function App() {
   );
 
   const handleApprove = useCallback((suggestion: Suggestion) => {
-    // Slice 007 wires this up to POST /api/events.
-    // For now we just surface the choice so the Owner can confirm the flow.
-    // eslint-disable-next-line no-console
-    console.log("Approved suggestion", suggestion);
+    setCreateState({ kind: "idle" });
+    setPendingSuggestion(suggestion);
   }, []);
+
+  const handleCancel = useCallback(() => {
+    if (createState.kind === "submitting") return;
+    setPendingSuggestion(null);
+    setCreateState({ kind: "idle" });
+  }, [createState]);
+
+  const handleConfirm = useCallback(async () => {
+    if (planState.kind !== "ready" || !pendingSuggestion) return;
+    setCreateState({ kind: "submitting" });
+    try {
+      const res = await fetch("/api/events", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          slot: { start: pendingSuggestion.start, end: pendingSuggestion.end },
+          parsedPlan: planState.parsed,
+          originalPlanText: planState.originalText,
+        }),
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { message?: string };
+        throw new Error(body.message ?? `HTTP ${res.status}`);
+      }
+      pushToast("Событие создано", "success");
+      setPendingSuggestion(null);
+      setCreateState({ kind: "idle" });
+      // Refetch the week so the new event shows as busy
+      void fetchWeek(startParam);
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      setCreateState({ kind: "error", message });
+      pushToast(`Не удалось: ${message}`, "error");
+    }
+  }, [planState, pendingSuggestion, pushToast, fetchWeek, startParam]);
 
   const suggestionsForWeek = useCallback((): WeekViewSuggestion[] => {
     if (planState.kind !== "ready") return [];
-    // Only show suggestions that fall within the loaded week
     if (weekState.kind !== "ready") return planState.suggestions;
     const ws = new Date(weekState.data.week.start).getTime();
     const we = new Date(weekState.data.week.end).getTime();
@@ -168,7 +220,7 @@ export function App() {
             <Suggestions
               suggestions={planState.suggestions}
               onApprove={handleApprove}
-              onSelect={(s) => console.log("selected", s)}
+              onSelect={handleApprove}
             />
           </div>
         )}
@@ -200,10 +252,51 @@ export function App() {
               onPrev={handlePrev}
               onNext={handleNext}
               onToday={handleToday}
+              onSuggestionClick={(s) =>
+                handleApprove({
+                  start: s.start,
+                  end: s.end,
+                  score: s.score ?? 0,
+                  reason: s.reason ?? "",
+                })
+              }
             />
           )}
         </div>
       </div>
+
+      {pendingSuggestion && planState.kind === "ready" && (
+        <ConfirmModal
+          suggestion={pendingSuggestion}
+          parsedPlan={planState.parsed}
+          originalPlanText={planState.originalText}
+          onConfirm={handleConfirm}
+          onCancel={handleCancel}
+          submitting={createState.kind === "submitting"}
+          error={createState.kind === "error" ? createState.message : null}
+        />
+      )}
+
+      {toasts.length > 0 && (
+        <div style={{ position: "fixed", bottom: "var(--space-4)", right: "var(--space-4)", display: "flex", flexDirection: "column", gap: "var(--space-2)", zIndex: 200 }}>
+          {toasts.map((t) => (
+            <div
+              key={t.id}
+              data-testid={t.tone === "success" ? "create-toast" : "error-toast"}
+              style={{
+                padding: "var(--space-3) var(--space-4)",
+                borderRadius: "var(--radius-md)",
+                background: t.tone === "success" ? "var(--color-success)" : "var(--color-destructive)",
+                color: t.tone === "success" ? "var(--color-success-fg)" : "var(--color-destructive-fg)",
+                boxShadow: "var(--shadow-2)",
+                fontSize: "var(--font-size-sm)",
+              }}
+            >
+              {t.message}
+            </div>
+          ))}
+        </div>
+      )}
     </main>
   );
 }

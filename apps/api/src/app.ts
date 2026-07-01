@@ -4,13 +4,16 @@ import authPlugin from "./plugins/authPlugin.js";
 import { healthAuthRoute } from "./routes/healthAuth.js";
 import { weekRoute, type CalendarClientFactory } from "./routes/week.js";
 import { planRoute, type PlanParser } from "./routes/plan.js";
+import { eventsRoute, type EventsClientFactory } from "./routes/events.js";
 import { buildCalendarClient } from "./infrastructure/google/freebusy.js";
+import { buildEventsClient } from "./infrastructure/google/events.js";
 
 export interface BuildAppOptions {
   refreshToken?: string;
   clientId?: string;
   clientSecret?: string;
   calendarClientFactory?: CalendarClientFactory;
+  eventsClientFactory?: EventsClientFactory;
   geminiApiKey?: string;
   parsePlanFn?: PlanParser;
 }
@@ -52,6 +55,10 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     geminiApiKey: options.geminiApiKey,
     parsePlanFn: options.parsePlanFn,
     calendarClientFactory: options.calendarClientFactory,
+  });
+
+  await app.register(eventsRoute, {
+    eventsClientFactory: options.eventsClientFactory ?? buildEventsClient,
   });
 
   return app;
