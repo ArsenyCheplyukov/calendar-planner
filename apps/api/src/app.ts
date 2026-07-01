@@ -2,11 +2,14 @@ import Fastify, { type FastifyInstance } from "fastify";
 import cors from "@fastify/cors";
 import authPlugin from "./plugins/authPlugin.js";
 import { healthAuthRoute } from "./routes/healthAuth.js";
+import { weekRoute, type CalendarClientFactory } from "./routes/week.js";
+import { buildCalendarClient } from "./infrastructure/google/freebusy.js";
 
 export interface BuildAppOptions {
   refreshToken?: string;
   clientId?: string;
   clientSecret?: string;
+  calendarClientFactory?: CalendarClientFactory;
 }
 
 export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyInstance> {
@@ -37,6 +40,10 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   });
 
   await app.register(healthAuthRoute);
+
+  await app.register(weekRoute, {
+    calendarClientFactory: options.calendarClientFactory ?? buildCalendarClient,
+  });
 
   return app;
 }

@@ -1,67 +1,79 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { App } from "./App.js";
 
-describe("App", () => {
+describe("App with week grid", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
   });
 
-  it("renders the app shell with the title and a Card for API status", () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(() => new Promise(() => {})),
-    );
-
-    render(<App />);
-
-    expect(screen.getByTestId("app")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: /calendar planner/i })).toBeInTheDocument();
-    expect(screen.getByTestId("api-status-card")).toBeInTheDocument();
-    expect(screen.getByTestId("api-status-card")).toHaveAttribute("data-padding", "md");
-    expect(screen.getByTestId("api-status-surface")).toBeInTheDocument();
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
-  it("shows loading state initially", () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(() => new Promise(() => {})),
-    );
-
-    render(<App />);
-    expect(screen.getByTestId("status-loading")).toBeInTheDocument();
-  });
-
-  it("shows ok status when /api/health returns { status: 'ok' }", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(() =>
-        Promise.resolve(
-          new Response(JSON.stringify({ status: "ok" }), {
-            status: 200,
-            headers: { "Content-Type": "application/json" },
-          }),
-        ),
-      ),
-    );
-
-    render(<App />);
-
-    await waitFor(() => {
-      expect(screen.getByTestId("status-ok")).toHaveTextContent("ok");
+  function mockApiResponses() {
+    return vi.fn().mockImplementation((url: string) => {
+      if (url.endsWith("/api/health")) {
+        return Promise.resolve(
+          new Response(JSON.stringify({ status: "ok" }), { status: 200 }),
+        );
+      }
+      if (url.includes("/api/week")) {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              week: {
+                start: "2026-07-06T00:00:00.000Z",
+                end: "2026-07-12T23:59:59.999Z",
+              },
+              busy: {
+                "2026-07-08": [
+                  { start: "2026-07-08T10:00:00Z", end: "2026-07-08T11:00:00Z" },
+                ],
+              },
+            }),
+            { status: 200, headers: { "Content-Type": "application/json" } },
+          ),
+        );
+      }
+      return Promise.reject(new Error("unexpected: " + url));
     });
-  });
+  }
 
-  it("shows error state when /api/health fails", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(() => Promise.reject(new Error("network down"))),
-    );
+  it("renders WeekView and a busy block from the API response", async () => {
+    vi.stubGlobal("fetch", mockApiResponses());
 
     render(<App />);
 
     await waitFor(() => {
-      expect(screen.getByTestId("status-error")).toHaveTextContent("network down");
+      expect(screen.getByTestId("week-view")).toBeInTheDocument();
+    });
+
+    const blocks = await screen.findAllByTestId("busy-block");
+    expect(blocks.length).toBeGreaterThan(0);
+  });
+
+  it("refetches with ?start= when next/prev/today buttons are clicked", async () => {
+    const fetchMock = mockApiResponses();
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<App />);
+    await waitFor(() => screen.getByTestId("week-view"));
+
+    fetchMock.mockClear();
+
+    fireEvent.click(screen.getByRole("button", { name: /следующая/i }));
+    await waitFor(() => {
+      const calls = fetchMock.mock.calls.map((c) => String(c[0]));
+      expect(calls.some((u) => u.includes("/api/week?start="))).toBe(true);
+    });
+
+    fetchMock.mockClear();
+    fireEvent.click(screen.getByRole("button", { name: /сегодня/i }));
+    await waitFor(() => {
+      const calls = fetchMock.mock.calls.map((c) => String(c[0]));
+      // Today should hit /api/week WITHOUT ?start=
+      expect(calls.some((u) => u.includes("/api/week") && !u.includes("?start="))).toBe(true);
     });
   });
 });

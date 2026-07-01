@@ -1,34 +1,85 @@
-import { useEffect, useState } from "react";
-import { Card } from "./components/Card/index.js";
-import { Surface } from "./components/Surface/index.js";
+import { useCallback, useEffect, useState } from "react";
+import { WeekView, type WeekViewBusyMap, type WeekViewWeek } from "./components/WeekView/index.js";
 import styles from "./App.module.css";
 
-type HealthResponse = { status: string };
+type WeekResponse = {
+  week: WeekViewWeek;
+  busy: WeekViewBusyMap;
+};
 
-type HealthState =
+type State =
   | { kind: "loading" }
-  | { kind: "ok"; data: HealthResponse }
+  | { kind: "ready"; data: WeekResponse }
   | { kind: "error"; message: string };
 
-export function App() {
-  const [state, setState] = useState<HealthState>({ kind: "loading" });
+function todayYmd(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
 
-  useEffect(() => {
-    fetch("/api/health")
-      .then((res) => {
-        if (!res.ok) {
-          throw new Error(`HTTP ${res.status}`);
-        }
-        return res.json() as Promise<HealthResponse>;
-      })
-      .then((data) => setState({ kind: "ok", data }))
-      .catch((e: unknown) =>
+function addDaysYmd(ymd: string, days: number): string {
+  const parts = ymd.split("-").map(Number);
+  const y = parts[0] ?? 0;
+  const m = parts[1] ?? 1;
+  const d = parts[2] ?? 1;
+  const dt = new Date(y, m - 1, d);
+  dt.setDate(dt.getDate() + days);
+  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
+}
+
+function buildWeekUrl(start: string | null): string {
+  return start ? `/api/week?start=${start}` : "/api/week";
+}
+
+export function App() {
+  const [state, setState] = useState<State>({ kind: "loading" });
+  const [startParam, setStartParam] = useState<string | null>(null);
+
+  const fetchWeek = useCallback(async (start: string | null) => {
+    setState({ kind: "loading" });
+    try {
+      const res = await fetch(buildWeekUrl(start));
+      if (res.status === 401) {
         setState({
           kind: "error",
-          message: e instanceof Error ? e.message : String(e),
-        }),
-      );
+          message: "Not authenticated. Run `pnpm auth` to bootstrap credentials.",
+        });
+        return;
+      }
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
+      }
+      const data = (await res.json()) as WeekResponse;
+      setState({ kind: "ready", data });
+    } catch (e: unknown) {
+      setState({
+        kind: "error",
+        message: e instanceof Error ? e.message : String(e),
+      });
+    }
   }, []);
+
+  useEffect(() => {
+    void fetchWeek(startParam);
+  }, [fetchWeek, startParam]);
+
+  const handlePrev = () => {
+    setStartParam((current) => {
+      const base = current ?? todayYmd();
+      return addDaysYmd(base, -7);
+    });
+  };
+
+  const handleNext = () => {
+    setStartParam((current) => {
+      const base = current ?? todayYmd();
+      return addDaysYmd(base, 7);
+    });
+  };
+
+  const handleToday = () => {
+    setStartParam(null);
+  };
 
   return (
     <main className={styles["app"]} data-testid="app">
@@ -38,28 +89,27 @@ export function App() {
           Single-user web app for placing plans into Google Calendar.
         </p>
 
-        <Card data-testid="api-status-card" padding="md">
-          <Surface data-testid="api-status-surface" as="div">
-            <div className={styles["status-row"]}>
-              <span>API status:</span>
-              {state.kind === "loading" && (
-                <span className={styles["status-loading"]} data-testid="status-loading">
-                  loading…
-                </span>
-              )}
-              {state.kind === "ok" && (
-                <span className={styles["status-ok"]} data-testid="status-ok">
-                  {state.data.status}
-                </span>
-              )}
-              {state.kind === "error" && (
-                <span className={styles["status-error"]} data-testid="status-error">
-                  error: {state.message}
-                </span>
-              )}
-            </div>
-          </Surface>
-        </Card>
+        {state.kind === "loading" && (
+          <div className={styles["status-loading"]} data-testid="week-loading">
+            Loading week…
+          </div>
+        )}
+
+        {state.kind === "error" && (
+          <div className={styles["status-error"]} data-testid="week-error">
+            {state.message}
+          </div>
+        )}
+
+        {state.kind === "ready" && (
+          <WeekView
+            week={state.data.week}
+            busy={state.data.busy}
+            onPrev={handlePrev}
+            onNext={handleNext}
+            onToday={handleToday}
+          />
+        )}
       </div>
     </main>
   );
