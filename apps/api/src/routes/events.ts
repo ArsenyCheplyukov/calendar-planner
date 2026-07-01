@@ -4,11 +4,18 @@ import {
   createEvent,
   type GoogleCalendarClient,
 } from "../infrastructure/google/events.js";
+import {
+  getEvents,
+  type GoogleEventsClient,
+  type ListedEvent,
+} from "../infrastructure/google/getEvents.js";
 
 export type EventsClientFactory = (accessToken: string) => GoogleCalendarClient;
+export type EventsListClientFactory = (accessToken: string) => GoogleEventsClient;
 
 export interface EventsRouteOptions {
   eventsClientFactory: EventsClientFactory;
+  eventsListClientFactory?: EventsListClientFactory;
 }
 
 interface CreateEventBody {
@@ -70,4 +77,49 @@ export async function eventsRoute(
       return reply.status(502).send({ error: "upstream_error", message });
     }
   });
+
+  // GET /api/events?from=ISO&to=ISO — privacy-first on-demand event titles
+  app.get<{ Querystring: { from?: string; to?: string } }>(
+    "/api/events",
+    async (req, reply) => {
+      const { from, to } = req.query;
+      if (!from || !to) {
+        return reply.status(400).send({
+          error: "bad_request",
+          message: "`from` and `to` (ISO datetime) are required",
+        });
+      }
+      if (Number.isNaN(Date.parse(from)) || Number.isNaN(Date.parse(to))) {
+        return reply.status(400).send({
+          error: "bad_request",
+          message: "`from` and `to` must be valid ISO datetimes",
+        });
+      }
+      if (!req.accessToken) {
+        return reply.status(401).send({
+          error: "unauthenticated",
+          message: "Run `pnpm auth` to bootstrap credentials.",
+        });
+      }
+
+      const listFactory =
+        opts.eventsListClientFactory ??
+        ((token: string) => {
+          // eslint-disable-next-line @typescript-eslint/no-require-imports
+          const { google } = require("googleapis") as typeof import("googleapis");
+          const auth = new google.auth.OAuth2();
+          auth.setCredentials({ access_token: token });
+          return google.calendar({ version: "v3", auth });
+        });
+
+      try {
+        const client = listFactory(req.accessToken) as GoogleEventsClient;
+        const events: ListedEvent[] = await getEvents(from, to, req.accessToken, client);
+        return { events };
+      } catch (e) {
+        const message = e instanceof Error ? e.message : String(e);
+        return reply.status(502).send({ error: "upstream_error", message });
+    }
+    },
+  );
 }

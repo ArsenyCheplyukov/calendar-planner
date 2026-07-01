@@ -32,3 +32,5 @@ coverage/
 # Prisma local DB (slice 008)
 apps/api/prisma/dev.db
 apps/api/prisma/dev.db-journal
+apps/api/prisma/**/*.db
+apps/api/prisma/**/*.db-journal

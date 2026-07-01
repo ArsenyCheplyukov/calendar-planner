@@ -8,6 +8,7 @@ import { eventsRoute, type EventsClientFactory } from "./routes/events.js";
 import { preferencesRoute } from "./routes/preferences.js";
 import { buildCalendarClient } from "./infrastructure/google/freebusy.js";
 import { buildEventsClient } from "./infrastructure/google/events.js";
+import { buildEventsListClient } from "./infrastructure/google/getEvents.js";
 import { defaultPreferencesStore, type PreferencesStore } from "./infrastructure/preferences/store.js";
 
 export interface BuildAppOptions {
@@ -16,6 +17,7 @@ export interface BuildAppOptions {
   clientSecret?: string;
   calendarClientFactory?: CalendarClientFactory;
   eventsClientFactory?: EventsClientFactory;
+  eventsListClientFactory?: (accessToken: string) => unknown;
   geminiApiKey?: string;
   parsePlanFn?: PlanParser;
   preferencesStore?: PreferencesStore;
@@ -63,6 +65,8 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
 
   await app.register(eventsRoute, {
     eventsClientFactory: options.eventsClientFactory ?? buildEventsClient,
+    eventsListClientFactory:
+      (options.eventsListClientFactory as never) ?? (buildEventsListClient as never),
   });
 
   await app.register(preferencesRoute, {

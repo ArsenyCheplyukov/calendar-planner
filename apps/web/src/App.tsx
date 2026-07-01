@@ -8,6 +8,7 @@ import {
   type WeekViewSuggestion,
 } from "./components/WeekView/index.js";
 import { ConfirmModal } from "./components/ConfirmModal/index.js";
+import { EventsPopover, type EventItem } from "./components/EventsPopover/index.js";
 import type { Suggestion, ParsedPlan } from "@calendar-planner/shared";
 import styles from "./App.module.css";
 
@@ -30,6 +31,11 @@ type CreateState =
   | { kind: "idle" }
   | { kind: "submitting" }
   | { kind: "error"; message: string };
+
+type EventsPopoverState =
+  | { kind: "loading"; windowStart: string; windowEnd: string }
+  | { kind: "ready"; windowStart: string; windowEnd: string; events: EventItem[] }
+  | { kind: "error"; windowStart: string; windowEnd: string; message: string };
 
 type Toast = { id: number; message: string; tone: "success" | "error" };
 
@@ -59,6 +65,7 @@ export function App() {
   const [planState, setPlanState] = useState<PlanState>({ kind: "idle" });
   const [pendingSuggestion, setPendingSuggestion] = useState<Suggestion | null>(null);
   const [createState, setCreateState] = useState<CreateState>({ kind: "idle" });
+  const [eventsState, setEventsState] = useState<EventsPopoverState | null>(null);
   const [toasts, setToasts] = useState<Toast[]>([]);
 
   const pushToast = useCallback((message: string, tone: Toast["tone"]) => {
@@ -180,7 +187,6 @@ export function App() {
       pushToast("Событие создано", "success");
       setPendingSuggestion(null);
       setCreateState({ kind: "idle" });
-      // Refetch the week so the new event shows as busy
       void fetchWeek(startParam);
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
@@ -188,6 +194,40 @@ export function App() {
       pushToast(`Не удалось: ${message}`, "error");
     }
   }, [planState, pendingSuggestion, pushToast, fetchWeek, startParam]);
+
+  const handleBlockClick = useCallback(async (busySlot: { start: string; end: string }) => {
+    setEventsState({ kind: "loading", windowStart: busySlot.start, windowEnd: busySlot.end });
+    try {
+      const res = await fetch(
+        `/api/events?from=${encodeURIComponent(busySlot.start)}&to=${encodeURIComponent(busySlot.end)}`,
+      );
+      if (res.status === 401) {
+        throw new Error("Не авторизован. Запустите pnpm auth.");
+      }
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { message?: string };
+        throw new Error(body.message ?? `HTTP ${res.status}`);
+      }
+      const body = (await res.json()) as { events: EventItem[] };
+      setEventsState({
+        kind: "ready",
+        windowStart: busySlot.start,
+        windowEnd: busySlot.end,
+        events: body.events,
+      });
+    } catch (e) {
+      setEventsState({
+        kind: "error",
+        windowStart: busySlot.start,
+        windowEnd: busySlot.end,
+        message: e instanceof Error ? e.message : String(e),
+      });
+    }
+  }, []);
+
+  const handlePopoverClose = useCallback(() => {
+    setEventsState(null);
+  }, []);
 
   const suggestionsForWeek = useCallback((): WeekViewSuggestion[] => {
     if (planState.kind !== "ready") return [];
@@ -257,6 +297,7 @@ export function App() {
               onPrev={handlePrev}
               onNext={handleNext}
               onToday={handleToday}
+              onBlockClick={handleBlockClick}
               onSuggestionClick={(s) =>
                 handleApprove({
                   start: s.start,
@@ -279,6 +320,17 @@ export function App() {
           onCancel={handleCancel}
           submitting={createState.kind === "submitting"}
           error={createState.kind === "error" ? createState.message : null}
+        />
+      )}
+
+      {eventsState && (
+        <EventsPopover
+          windowStart={eventsState.windowStart}
+          windowEnd={eventsState.windowEnd}
+          events={eventsState.kind === "ready" ? eventsState.events : []}
+          loading={eventsState.kind === "loading"}
+          error={eventsState.kind === "error" ? eventsState.message : null}
+          onClose={handlePopoverClose}
         />
       )}
 
