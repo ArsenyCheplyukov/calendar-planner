@@ -51,6 +51,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   await app.register(planRoute, {
     geminiApiKey: options.geminiApiKey,
     parsePlanFn: options.parsePlanFn,
+    calendarClientFactory: options.calendarClientFactory,
   });
 
   return app;

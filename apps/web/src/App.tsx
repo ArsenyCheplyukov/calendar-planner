@@ -1,6 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
 import { PlanInput, type PlanInputResult } from "./components/PlanInput/index.js";
-import { WeekView, type WeekViewBusyMap, type WeekViewWeek } from "./components/WeekView/index.js";
+import { Suggestions } from "./components/Suggestions/index.js";
+import {
+  WeekView,
+  type WeekViewBusyMap,
+  type WeekViewWeek,
+  type WeekViewSuggestion,
+} from "./components/WeekView/index.js";
+import type { Suggestion, ParsedPlan } from "@calendar-planner/shared";
 import styles from "./App.module.css";
 
 type WeekResponse = {
@@ -11,6 +18,11 @@ type WeekResponse = {
 type WeekState =
   | { kind: "loading" }
   | { kind: "ready"; data: WeekResponse }
+  | { kind: "error"; message: string };
+
+type PlanState =
+  | { kind: "idle" }
+  | { kind: "ready"; parsed: ParsedPlan; suggestions: Suggestion[] }
   | { kind: "error"; message: string };
 
 function todayYmd(): string {
@@ -36,6 +48,7 @@ export function App() {
   const [weekState, setWeekState] = useState<WeekState>({ kind: "loading" });
   const [startParam, setStartParam] = useState<string | null>(null);
   const [planText, setPlanText] = useState("");
+  const [planState, setPlanState] = useState<PlanState>({ kind: "idle" });
 
   const fetchWeek = useCallback(async (start: string | null) => {
     setWeekState({ kind: "loading" });
@@ -99,7 +112,15 @@ export function App() {
           const body = (await res.json().catch(() => ({}))) as { message?: string };
           return { error: body.message ?? `HTTP ${res.status}` };
         }
-        const body = (await res.json()) as { parsed: unknown };
+        const body = (await res.json()) as {
+          parsed: ParsedPlan;
+          suggestions: Suggestion[];
+        };
+        setPlanState({
+          kind: "ready",
+          parsed: body.parsed,
+          suggestions: body.suggestions,
+        });
         return { parsed: body.parsed };
       } catch (e) {
         return { error: e instanceof Error ? e.message : String(e) };
@@ -107,6 +128,25 @@ export function App() {
     },
     [],
   );
+
+  const handleApprove = useCallback((suggestion: Suggestion) => {
+    // Slice 007 wires this up to POST /api/events.
+    // For now we just surface the choice so the Owner can confirm the flow.
+    // eslint-disable-next-line no-console
+    console.log("Approved suggestion", suggestion);
+  }, []);
+
+  const suggestionsForWeek = useCallback((): WeekViewSuggestion[] => {
+    if (planState.kind !== "ready") return [];
+    // Only show suggestions that fall within the loaded week
+    if (weekState.kind !== "ready") return planState.suggestions;
+    const ws = new Date(weekState.data.week.start).getTime();
+    const we = new Date(weekState.data.week.end).getTime();
+    return planState.suggestions.filter((s) => {
+      const t = new Date(s.start).getTime();
+      return t >= ws && t <= we;
+    });
+  }, [planState, weekState]);
 
   return (
     <main className={styles["app"]} data-testid="app">
@@ -121,6 +161,23 @@ export function App() {
           onTextChange={setPlanText}
           onSubmit={handlePlanSubmit}
         />
+
+        {planState.kind === "ready" && (
+          <div style={{ marginTop: "var(--space-6)" }} data-testid="suggestions-section">
+            <h2 className={styles["section-title"]}>Suggestions</h2>
+            <Suggestions
+              suggestions={planState.suggestions}
+              onApprove={handleApprove}
+              onSelect={(s) => console.log("selected", s)}
+            />
+          </div>
+        )}
+
+        {planState.kind === "error" && (
+          <div className={styles["status-error"]} data-testid="plan-error">
+            {planState.message}
+          </div>
+        )}
 
         <div style={{ marginTop: "var(--space-6)" }}>
           {weekState.kind === "loading" && (
@@ -139,6 +196,7 @@ export function App() {
             <WeekView
               week={weekState.data.week}
               busy={weekState.data.busy}
+              suggestions={suggestionsForWeek()}
               onPrev={handlePrev}
               onNext={handleNext}
               onToday={handleToday}

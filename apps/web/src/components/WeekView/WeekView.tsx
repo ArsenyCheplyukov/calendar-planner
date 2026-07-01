@@ -9,14 +9,23 @@ export interface WeekViewWeek {
 
 export type WeekViewBusyMap = Record<string, Array<{ start: string; end: string }>>;
 
+export interface WeekViewSuggestion {
+  start: string;
+  end: string;
+  score?: number;
+  reason?: string;
+}
+
 export interface WeekViewProps {
   week: WeekViewWeek;
   busy: WeekViewBusyMap;
+  suggestions?: WeekViewSuggestion[];
   today?: string; // YYYY-MM-DD; defaults to "now" in local time
   onPrev: () => void;
   onNext: () => void;
   onToday: () => void;
   onBlockClick?: (busySlot: { start: string; end: string }) => void;
+  onSuggestionClick?: (suggestion: WeekViewSuggestion) => void;
 }
 
 const DAY_NAMES_RU = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
@@ -53,11 +62,13 @@ function formatRangeLabel(start: string, end: string): string {
 export function WeekView({
   week,
   busy,
+  suggestions = [] as WeekViewSuggestion[],
   today,
   onPrev,
   onNext,
   onToday,
   onBlockClick,
+  onSuggestionClick,
 }: WeekViewProps) {
   const days = useMemo(() => {
     const out: Date[] = [];
@@ -95,6 +106,9 @@ export function WeekView({
         {days.map((d, i) => {
           const key = ymdLocal(d);
           const dayBusy = busy[key] ?? [];
+          const daySuggestions: WeekViewSuggestion[] = suggestions.filter(
+            (s: WeekViewSuggestion) => s.start.slice(0, 10) === key,
+          );
           const isPast = key < todayKey;
           return (
             <div
@@ -109,20 +123,33 @@ export function WeekView({
                 <span className={styles["day-date"]}>{d.getDate()}</span>
               </div>
               <div className={styles["day-body"]}>
-                {dayBusy.length === 0 ? (
+                {dayBusy.length === 0 && daySuggestions.length === 0 ? (
                   <span className={styles["empty"]}>—</span>
                 ) : (
-                  dayBusy.map((slot, idx) => (
-                    <button
-                      key={`${slot.start}-${idx}`}
-                      type="button"
-                      className={styles["busy-block"]}
-                      data-testid="busy-block"
-                      onClick={() => onBlockClick?.(slot)}
-                    >
-                      {timeLabel(slot.start)}–{timeLabel(slot.end)}
-                    </button>
-                  ))
+                  <>
+                    {dayBusy.map((slot, idx) => (
+                      <button
+                        key={`busy-${slot.start}-${idx}`}
+                        type="button"
+                        className={styles["busy-block"]}
+                        data-testid="busy-block"
+                        onClick={() => onBlockClick?.(slot)}
+                      >
+                        {timeLabel(slot.start)}–{timeLabel(slot.end)}
+                      </button>
+                    ))}
+                    {daySuggestions.map((s, idx) => (
+                      <button
+                        key={`sug-${s.start}-${idx}`}
+                        type="button"
+                        className={styles["suggested-block"]}
+                        data-testid="suggested-block"
+                        onClick={() => onSuggestionClick?.(s)}
+                      >
+                        {timeLabel(s.start)}–{timeLabel(s.end)}
+                      </button>
+                    ))}
+                  </>
                 )}
               </div>
             </div>

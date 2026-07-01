@@ -1,18 +1,35 @@
 import type { FastifyInstance } from "fastify";
 import { parsePlan, type ParsePlanOptions } from "../infrastructure/gemini/parser.js";
-
-export type PlanParser = (text: string) => ReturnType<typeof parsePlan>;
+import { suggestSlots, type CalendarClientFactory, type PlanParser } from "../services/suggest-slots.js";
 
 export interface PlanRouteOptions {
   geminiApiKey?: string;
   parsePlanFn?: PlanParser;
+  calendarClientFactory?: CalendarClientFactory;
+  getAccessToken?: () => Promise<string | null>;
 }
 
 export async function planRoute(
   app: FastifyInstance,
   opts: PlanRouteOptions,
 ): Promise<void> {
-  app.post<{ Body: { text?: unknown } }>("/api/plan", async (req, reply) => {
+  const parse = opts.parsePlanFn
+    ? opts.parsePlanFn
+    : (t: string) =>
+        parsePlan(t, {
+          apiKey: opts.geminiApiKey ?? process.env["GEMINI_API_KEY"] ?? "",
+        });
+
+  const getToken: () => Promise<string | null> =
+    opts.getAccessToken ??
+    (async () => {
+      // Fall back to reading from env directly (no refresh)
+      const envToken = process.env["GOOGLE_REFRESH_TOKEN"];
+      if (!envToken) return null;
+      return envToken;
+    });
+
+  app.post<{ Body: { text?: unknown; startDate?: string } }>("/api/plan", async (req, reply) => {
     const text = req.body?.text;
     if (typeof text !== "string" || text.trim().length === 0) {
       return reply.status(400).send({
@@ -21,25 +38,25 @@ export async function planRoute(
       });
     }
 
-    const parse = opts.parsePlanFn
-      ? opts.parsePlanFn
-      : (t: string) =>
-          parsePlan(t, {
-            apiKey: opts.geminiApiKey ?? process.env["GEMINI_API_KEY"] ?? "",
-          });
-
     try {
-      const parsed = await parse(text);
-      return { parsed };
+      const result = await suggestSlots(
+        { text, startDate: req.body?.startDate },
+        {
+          parsePlan: parse,
+          calendarClientFactory:
+            opts.calendarClientFactory ??
+            (() => {
+              throw new Error("calendarClientFactory not provided");
+            }),
+          getAccessToken: getToken,
+        },
+      );
+      return { parsed: result.parsed, suggestions: result.suggestions };
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
-      return reply.status(502).send({
-        error: "upstream_error",
-        message,
-      });
+      return reply.status(502).send({ error: "upstream_error", message });
     }
   });
 }
 
-// Re-export the type to keep `parsePlan` discoverable
-export type { ParsePlanOptions };
+export type { CalendarClientFactory, PlanParser, ParsePlanOptions };

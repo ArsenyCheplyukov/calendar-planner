@@ -38,22 +38,26 @@ const RESPONSE_SCHEMA = {
       type: "string",
       enum: ["focus", "meeting", "personal", "errand"],
     },
-    deadline: { type: ["string", "null"] },
+    deadline: { type: "string", nullable: true },
     hint: {
-      type: ["object", "null"],
+      type: "object",
+      nullable: true,
       properties: {
         window: {
-          type: ["object", "null"],
+          type: "object",
+          nullable: true,
           properties: {
             dayOfWeek: {
-              type: ["string", "null"],
-              enum: ["mon", "tue", "wed", "thu", "fri", "sat", "sun", null],
+              type: "string",
+              nullable: true,
+              enum: ["mon", "tue", "wed", "thu", "fri", "sat", "sun"],
             },
             timeOfDay: {
-              type: ["string", "null"],
-              enum: ["morning", "midday", "evening", null],
+              type: "string",
+              nullable: true,
+              enum: ["morning", "midday", "evening"],
             },
-            date: { type: ["string", "null"] },
+            date: { type: "string", nullable: true },
           },
         },
       },

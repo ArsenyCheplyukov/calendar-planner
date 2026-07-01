@@ -39,6 +39,14 @@ describe("App with PlanInput + WeekView", () => {
                 deadline: null,
                 hint: null,
               },
+              suggestions: [
+                {
+                  start: "2026-07-08T09:00:00.000Z",
+                  end: "2026-07-08T10:00:00.000Z",
+                  score: 0.8,
+                  reason: "ср 09:00–10:00, 60 мин (фокус)",
+                },
+              ],
             }),
             { status: 200, headers: { "Content-Type": "application/json" } },
           ),

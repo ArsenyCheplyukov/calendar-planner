@@ -87,7 +87,7 @@ export function PlanInput({
           </div>
         )}
 
-        {import.meta.env.DEV && lastResult !== null && (
+        {lastResult !== null && (
           <details className={styles["debug"]} data-testid="plan-debug">
             <summary>Parsed plan (debug)</summary>
             <pre>{JSON.stringify(lastResult, null, 2)}</pre>
