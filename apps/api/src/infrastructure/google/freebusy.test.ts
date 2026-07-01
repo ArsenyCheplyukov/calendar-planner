@@ -10,7 +10,7 @@ function buildWeek(): Week {
 }
 
 describe("getFreeBusy", () => {
-  it("calls freeBusy.query with all calendars (empty items array)", async () => {
+  it("calls freeBusy.query with the primary calendar", async () => {
     const freebusyQuery = vi.fn().mockResolvedValue({
       data: { calendars: {} },
     });
@@ -22,7 +22,7 @@ describe("getFreeBusy", () => {
 
     expect(freebusyQuery).toHaveBeenCalledTimes(1);
     const call = freebusyQuery.mock.calls[0]![0];
-    expect(call.requestBody.items).toEqual([]);
+    expect(call.requestBody.items).toEqual([{ id: "primary" }]);
     expect(call.requestBody.timeMin).toMatch(/2026-07-06/);
     expect(call.requestBody.timeMax).toMatch(/2026-07-12T23:59/);
     expect(result).toEqual({});

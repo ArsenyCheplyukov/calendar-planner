@@ -28,7 +28,7 @@ export async function getFreeBusy(
     requestBody: {
       timeMin,
       timeMax,
-      items: [], // empty = all calendars the user has
+      items: [{ id: "primary" }],
     },
   });
 
