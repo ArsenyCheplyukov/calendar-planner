@@ -9,12 +9,14 @@
     "start": "node dist/server.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "auth": "tsx src/auth/runAuth.ts"
   },
   "dependencies": {
     "@calendar-planner/shared": "workspace:*",
     "@fastify/cors": "^10.0.1",
-    "fastify": "^5.1.0"
+    "fastify": "^5.1.0",
+    "fastify-plugin": "^6.0.0"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",

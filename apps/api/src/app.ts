@@ -1,7 +1,15 @@
 import Fastify, { type FastifyInstance } from "fastify";
 import cors from "@fastify/cors";
+import authPlugin from "./plugins/authPlugin.js";
+import { healthAuthRoute } from "./routes/healthAuth.js";
 
-export async function buildApp(): Promise<FastifyInstance> {
+export interface BuildAppOptions {
+  refreshToken?: string;
+  clientId?: string;
+  clientSecret?: string;
+}
+
+export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyInstance> {
   const app = Fastify({
     logger: {
       level: process.env["LOG_LEVEL"] ?? "info",
@@ -12,9 +20,23 @@ export async function buildApp(): Promise<FastifyInstance> {
     origin: true,
   });
 
+  const refreshToken =
+    options.refreshToken ?? process.env["GOOGLE_REFRESH_TOKEN"] ?? "";
+  const clientId = options.clientId ?? process.env["GOOGLE_CLIENT_ID"] ?? "";
+  const clientSecret =
+    options.clientSecret ?? process.env["GOOGLE_CLIENT_SECRET"] ?? "";
+
+  await app.register(authPlugin, {
+    refreshToken,
+    clientId,
+    clientSecret,
+  });
+
   app.get("/api/health", async () => {
     return { status: "ok" };
   });
+
+  await app.register(healthAuthRoute);
 
   return app;
 }

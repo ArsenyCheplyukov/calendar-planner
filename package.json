@@ -8,7 +8,8 @@
     "dev": "concurrently -n api,web -c blue,magenta \"pnpm --filter @calendar-planner/api dev\" \"pnpm --filter @calendar-planner/web dev\"",
     "build": "pnpm -r run build",
     "typecheck": "pnpm -r run typecheck",
-    "test": "pnpm -r run test"
+    "test": "pnpm -r run test",
+    "auth": "pnpm --filter @calendar-planner/api auth"
   },
   "devDependencies": {
     "concurrently": "^9.1.0",
