@@ -4,15 +4,15 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "dotenv -e ../../.env -- tsx watch src/server.ts",
+    "dev": "node --env-file=../../.env --watch-path=../../.env --import tsx src/server.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/server.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "auth": "dotenv -e ../../.env -- tsx src/auth/runAuth.ts",
-    "db:generate": "prisma generate",
-    "db:push": "dotenv -e ../../.env -- prisma db push"
+    "auth": "node --env-file=../../.env --import tsx src/auth/runAuth.ts",
+    "db:generate": "node --env-file=../../.env ../../node_modules/.pnpm/prisma@6.19.3_typescript@5.9.3/node_modules/prisma/build/index.js generate",
+    "db:push": "node --env-file=../../.env ../../node_modules/.pnpm/prisma@6.19.3_typescript@5.9.3/node_modules/prisma/build/index.js db push"
   },
   "dependencies": {
     "@calendar-planner/shared": "workspace:*",
