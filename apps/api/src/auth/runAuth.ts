@@ -1,7 +1,6 @@
 /* eslint-disable no-console */
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { spawn } from "node:child_process";
-import { resolve } from "node:path";
 import {
   getRequiredEnv,
   loadEnvFromFile,
@@ -9,9 +8,7 @@ import {
   writeRefreshTokenToEnv,
 } from "./cli.js";
 import { buildAuthUrl, exchangeCodeForTokens } from "../infrastructure/google/oauth.js";
-
-const REPO_ROOT = resolve(import.meta.dirname, "../../../../..");
-const ENV_PATH = resolve(REPO_ROOT, ".env");
+import { ENV_PATH } from "./envPath.js";
 
 function openBrowser(url: string): void {
   const cmd =

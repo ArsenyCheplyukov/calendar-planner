@@ -1,10 +1,28 @@
 import { describe, it, expect } from "vitest";
 import { spawn } from "node:child_process";
+import { createServer } from "node:net";
 import { resolve } from "node:path";
 
 const API_DIR = resolve(import.meta.dirname, "../..");
 
-function runAuthScript(): Promise<{ stdout: string; stderr: string; exitCode: number | null; signal: NodeJS.Signals | null }> {
+function getFreePort(): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const server = createServer();
+    server.listen(0, () => {
+      const address = server.address();
+      if (address && typeof address !== "string") {
+        const port = address.port;
+        server.close(() => resolve(port));
+      } else {
+        reject(new Error("Could not get ephemeral port"));
+      }
+    });
+  });
+}
+
+function runAuthScript(
+  port: number,
+): Promise<{ stdout: string; stderr: string; exitCode: number | null; signal: NodeJS.Signals | null }> {
   return new Promise((resolve, reject) => {
     const child = spawn(
       "node",
@@ -15,7 +33,7 @@ function runAuthScript(): Promise<{ stdout: string; stderr: string; exitCode: nu
           ...process.env,
           GOOGLE_CLIENT_ID: "test-client-id",
           GOOGLE_CLIENT_SECRET: "test-client-secret",
-          GOOGLE_REDIRECT_URI: "http://localhost:3001/auth/callback",
+          GOOGLE_REDIRECT_URI: `http://localhost:${port}/auth/callback`,
         },
         detached: true,
       },
@@ -58,13 +76,14 @@ function runAuthScript(): Promise<{ stdout: string; stderr: string; exitCode: nu
       } catch {
         child.kill("SIGTERM");
       }
-    }, 3000);
+    }, 1500);
   });
 }
 
 describe("runAuth entry point", () => {
   it("starts the OAuth flow and listens for the callback", async () => {
-    const { stdout, stderr, exitCode, signal } = await runAuthScript();
+    const port = await getFreePort();
+    const { stdout, stderr, exitCode, signal } = await runAuthScript(port);
 
     expect(stdout).toContain("Opening browser to authorize…");
     expect(stdout).toContain("If the browser does not open, visit:");
