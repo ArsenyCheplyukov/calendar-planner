@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { getFreeBusy } from "./freebusy.js";
+import { buildCalendarClient, getFreeBusy } from "./freebusy.js";
 import type { Week } from "../../domain/week.js";
 
 function buildWeek(): Week {
@@ -72,5 +72,10 @@ describe("getFreeBusy", () => {
     };
     const result = await getFreeBusy(buildWeek(), "ya29.test", calendarMock as never);
     expect(result).toEqual({});
+  });
+
+  it("builds an authenticated Google calendar client lazily", () => {
+    const client = buildCalendarClient("ya29.test");
+    expect(client.freebusy.query).toBeInstanceOf(Function);
   });
 });

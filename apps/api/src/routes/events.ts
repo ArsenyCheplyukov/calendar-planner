@@ -5,6 +5,7 @@ import {
   type GoogleCalendarClient,
 } from "../infrastructure/google/events.js";
 import {
+  buildEventsListClient,
   getEvents,
   type GoogleEventsClient,
   type ListedEvent,
@@ -102,15 +103,7 @@ export async function eventsRoute(
         });
       }
 
-      const listFactory =
-        opts.eventsListClientFactory ??
-        ((token: string) => {
-          // eslint-disable-next-line @typescript-eslint/no-require-imports
-          const { google } = require("googleapis") as typeof import("googleapis");
-          const auth = new google.auth.OAuth2();
-          auth.setCredentials({ access_token: token });
-          return google.calendar({ version: "v3", auth });
-        });
+      const listFactory = opts.eventsListClientFactory ?? buildEventsListClient;
 
       try {
         const client = listFactory(req.accessToken) as GoogleEventsClient;

@@ -1,4 +1,5 @@
 import { calendar_v3 } from "googleapis";
+import { createRequire } from "node:module";
 import { toIsoRange, type Week } from "../../domain/week.js";
 
 export type BusyMap = Record<string, Array<{ start: string; end: string }>>;
@@ -51,7 +52,7 @@ export function buildCalendarClient(accessToken: string): GoogleCalendarClient {
   // Lazy import: googleapis pulls a large tree; we only need the Calendar surface
   // for now, and lazy loading keeps `tsc --noEmit` fast and tests snappy.
   // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { google } = require("googleapis") as typeof import("googleapis");
+  const { google } = createRequire(import.meta.url)("googleapis") as typeof import("googleapis");
   const auth = new google.auth.OAuth2();
   auth.setCredentials({ access_token: accessToken });
   return google.calendar({ version: "v3", auth });

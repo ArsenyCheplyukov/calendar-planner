@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { createEvent, type GoogleCalendarClient } from "./events.js";
+import { buildEventsClient, createEvent, type GoogleCalendarClient } from "./events.js";
 
 function makeClient(insertMock = vi.fn()): GoogleCalendarClient {
   return { events: { insert: insertMock } };
@@ -68,5 +68,10 @@ describe("createEvent", () => {
         makeClient(insert),
       ),
     ).rejects.toThrow(/403/);
+  });
+
+  it("builds an authenticated Google calendar client lazily", () => {
+    const client = buildEventsClient("ya29.test");
+    expect(client.events.insert).toBeInstanceOf(Function);
   });
 });

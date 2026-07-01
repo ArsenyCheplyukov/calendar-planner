@@ -1,4 +1,5 @@
 import type { calendar_v3 } from "googleapis";
+import { createRequire } from "node:module";
 
 export interface GoogleEventsClient {
   events: {
@@ -79,7 +80,7 @@ export async function getEvents(
 /** Build an authenticated googleapis calendar client from an access token. */
 export function buildEventsListClient(accessToken: string): GoogleEventsClient {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { google } = require("googleapis") as typeof import("googleapis");
+  const { google } = createRequire(import.meta.url)("googleapis") as typeof import("googleapis");
   const auth = new google.auth.OAuth2();
   auth.setCredentials({ access_token: accessToken });
   return google.calendar({ version: "v3", auth });
