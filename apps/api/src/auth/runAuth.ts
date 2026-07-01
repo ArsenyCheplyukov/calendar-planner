@@ -111,3 +111,8 @@ export async function runAuth(): Promise<void> {
 
   console.log("Refresh token written to .env. You can now run the app.");
 }
+
+runAuth().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});
