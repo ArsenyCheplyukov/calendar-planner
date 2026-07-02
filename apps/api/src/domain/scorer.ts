@@ -1,4 +1,4 @@
-import type { ScoredSlot, Slot, ParsedPlan, Preferences, PlanHint, EventType } from "@calendar-planner/shared";
+import type { ScoredSlot, Slot, ParsedPlan, Preferences, PlanHint, EventType, TimeOfDay } from "@calendar-planner/shared";
 
 export const DEFAULT_PREFERENCES: Preferences = {
   workingHoursStart: "09:00",
@@ -15,12 +15,19 @@ const DAY_OF_WEEK_TO_INDEX: Record<"mon" | "tue" | "wed" | "thu" | "fri" | "sat"
   sun: 0, mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6,
 };
 
+const TIME_OF_DAY_WINDOWS: Record<TimeOfDay, { start: string; end: string }> = {
+  morning: { start: "07:00", end: "12:00" },
+  midday: { start: "12:00", end: "16:00" },
+  evening: { start: "18:00", end: "23:00" },
+};
+
 export function mergeWithHint(
   preferences: Preferences,
   hint: PlanHint | null | undefined,
 ): Preferences {
-  if (!hint) return preferences;
-  return { ...preferences };
+  if (!hint?.window?.timeOfDay) return { ...preferences };
+  const { start, end } = TIME_OF_DAY_WINDOWS[hint.window.timeOfDay];
+  return { ...preferences, workingHoursStart: start, workingHoursEnd: end };
 }
 
 function parseHHMM(s: string): { h: number; m: number } {
@@ -50,7 +57,7 @@ function biasForType(type: EventType, preferences: Preferences): { startH: numbe
 }
 
 function timeOfDayMinutes(d: Date): number {
-  return d.getUTCHours() * 60 + d.getUTCMinutes();
+  return d.getHours() * 60 + d.getMinutes();
 }
 
 function inRange(minutes: number, range: { startH: number; startM: number; endH: number; endM: number }): boolean {
@@ -78,12 +85,19 @@ function deadlinePenalty(slot: Slot, deadline: string | null | undefined): numbe
   return 0;
 }
 
+function ymdLocal(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 function reasonForSlot(slot: Slot, type: EventType, preferences: Preferences, hint: PlanHint | null | undefined): string {
   const start = new Date(slot.start);
   const end = new Date(slot.end);
-  const startDay = DAY_NAMES_RU[start.getUTCDay()] ?? "";
-  const endDay = DAY_NAMES_RU[end.getUTCDay()] ?? "";
-  const hh = (d: Date) => `${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}`;
+  const startDay = DAY_NAMES_RU[start.getDay()] ?? "";
+  const endDay = DAY_NAMES_RU[end.getDay()] ?? "";
+  const hh = (d: Date) => `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 
   const typeName =
     type === "focus" ? "фокус-работа" :
@@ -103,21 +117,20 @@ function filterByHint(slots: Slot[], hint: PlanHint | null | undefined): Slot[] 
   return slots.filter((s) => {
     const start = new Date(s.start);
     if (win.dayOfWeek) {
-      const dow = start.getUTCDay();
+      const dow = start.getDay();
       const expected = DAY_OF_WEEK_TO_INDEX[win.dayOfWeek];
       if (dow !== expected) return false;
     }
     if (win.timeOfDay) {
       const minutes = timeOfDayMinutes(start);
-      const range =
-        win.timeOfDay === "morning" ? { startH: 9, startM: 0, endH: 12, endM: 0 } :
-        win.timeOfDay === "midday" ? { startH: 12, startM: 0, endH: 16, endM: 0 } :
-        { startH: 16, startM: 0, endH: 19, endM: 0 };
+      const { start: startStr, end: endStr } = TIME_OF_DAY_WINDOWS[win.timeOfDay]!;
+      const [startH, startM] = startStr.split(":").map(Number);
+      const [endH, endM] = endStr.split(":").map(Number);
+      const range = { startH: startH!, startM: startM!, endH: endH!, endM: endM! };
       if (!inRange(minutes, range)) return false;
     }
     if (win.date) {
-      const ymd = start.toISOString().slice(0, 10);
-      if (ymd !== win.date) return false;
+      if (ymdLocal(start) !== win.date) return false;
     }
     return true;
   });

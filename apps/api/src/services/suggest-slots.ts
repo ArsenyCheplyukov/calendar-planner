@@ -26,8 +26,9 @@ export async function suggestSlots(
 ): Promise<{ parsed: ParsedPlan; suggestions: Suggestion[]; preferences: Preferences }> {
   const { parsePlan, calendarClientFactory, getAccessToken, preferencesStore } = deps;
 
-  const preferences = await preferencesStore.getPreferences();
+  let preferences = await preferencesStore.getPreferences();
   const parsed = await parsePlan(input.text);
+  preferences = mergeWithHint(preferences, parsed.hint);
 
   const startDate = input.startDate;
   const week = startDate ? weekOf(new Date(startDate)) : currentWeek();
@@ -46,7 +47,6 @@ export async function suggestSlots(
   const weekStart = week.start;
   const slots = findSlots(busy, window, parsed.durationMinutes, preferences.bufferMinutes, weekStart);
 
-  mergeWithHint(preferences, parsed.hint);
   const scored = scoreSlots(slots, parsed, preferences, parsed.hint);
 
   return { parsed, suggestions: scored, preferences };

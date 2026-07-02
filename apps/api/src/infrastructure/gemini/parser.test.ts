@@ -57,6 +57,15 @@ describe("parsePlan", () => {
     expect(body.systemInstruction.parts[0].text).toMatch(/[а-яё]/i);
   });
 
+  it("includes today's date in the system instruction so relative references resolve correctly", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(buildGeminiResponse(VALID_PLAN));
+    await parsePlan("test", { apiKey: "k", fetchImpl: fetchMock as unknown as typeof fetch });
+
+    const body = JSON.parse(fetchMock.mock.calls[0]![1].body as string);
+    const instruction = body.systemInstruction.parts[0].text as string;
+    expect(instruction).toMatch(/Сегодняшняя дата: \d{4}-\d{2}-\d{2}/);
+  });
+
   it("throws a typed error when Gemini returns a shape mismatch", async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       buildGeminiResponse({ title: "missing everything else" }),
