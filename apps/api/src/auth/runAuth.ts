@@ -1,6 +1,6 @@
 /* eslint-disable no-console */
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import {
   getRequiredEnv,
   loadEnvFromFile,
@@ -10,14 +10,41 @@ import {
 import { buildAuthUrl, exchangeCodeForTokens } from "../infrastructure/google/oauth.js";
 import { ENV_PATH } from "./envPath.js";
 
+function findLinuxBrowser(): string {
+  const candidates = [
+    "google-chrome-stable",
+    "google-chrome",
+    "chromium",
+    "chromium-browser",
+  ];
+  for (const candidate of candidates) {
+    const found = spawnSync("command", ["-v", candidate], {
+      stdio: "ignore",
+      shell: true,
+    });
+    if (found.status === 0) {
+      return candidate;
+    }
+  }
+  return "xdg-open";
+}
+
 function openBrowser(url: string): void {
-  const cmd =
-    process.platform === "darwin"
-      ? "open"
-      : process.platform === "win32"
-        ? "start"
-        : "xdg-open";
-  spawn(cmd, [url], { detached: true, stdio: "ignore" }).unref();
+  let cmd: string;
+  let args: string[];
+
+  if (process.platform === "darwin") {
+    cmd = "open";
+    args = [url];
+  } else if (process.platform === "win32") {
+    cmd = "start";
+    args = [url];
+  } else {
+    cmd = findLinuxBrowser();
+    args = [url];
+  }
+
+  spawn(cmd, args, { detached: true, stdio: "ignore" }).unref();
 }
 
 function waitForAuthorizationCode(redirectUri: string): Promise<string> {
