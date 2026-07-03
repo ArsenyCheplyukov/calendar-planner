@@ -22,6 +22,7 @@ function getFreePort(): Promise<number> {
 
 function runAuthScript(
   port: number,
+  opts: { tokenOverride?: string } = {},
 ): Promise<{ stdout: string; stderr: string; exitCode: number | null; signal: NodeJS.Signals | null }> {
   return new Promise((resolve, reject) => {
     const child = spawn(
@@ -34,6 +35,7 @@ function runAuthScript(
           GOOGLE_CLIENT_ID: "test-client-id",
           GOOGLE_CLIENT_SECRET: "test-client-secret",
           GOOGLE_REDIRECT_URI: `http://localhost:${port}/auth/callback`,
+          ...(opts.tokenOverride !== undefined && { GOOGLE_REFRESH_TOKEN: opts.tokenOverride }),
         },
         detached: true,
       },
@@ -81,9 +83,9 @@ function runAuthScript(
 }
 
 describe("runAuth entry point", () => {
-  it("starts the OAuth flow and listens for the callback", async () => {
+  it("starts the OAuth flow and listens for the callback when no refresh token exists", async () => {
     const port = await getFreePort();
-    const { stdout, stderr, exitCode, signal } = await runAuthScript(port);
+    const { stdout, stderr, exitCode, signal } = await runAuthScript(port, { tokenOverride: "" });
 
     expect(stdout).toContain("Opening browser to authorize…");
     expect(stdout).toContain("If the browser does not open, visit:");
@@ -94,6 +96,20 @@ describe("runAuth entry point", () => {
     // so we terminate it before that happens.
     expect(signal).toBe("SIGTERM");
     expect(exitCode).toBeNull();
+    expect(stderr).not.toContain("Missing required env var");
+  });
+
+  it("skips the OAuth flow when a refresh token is already present", async () => {
+    const port = await getFreePort();
+    const { stdout, stderr, exitCode, signal } = await runAuthScript(port, { tokenOverride: "1//fake-token" });
+
+    expect(stdout).toContain("Refresh token already present in .env.");
+    expect(stdout).toContain("Run `pnpm auth --force` if you want to re-authenticate.");
+    expect(stdout).not.toContain("Opening browser to authorize…");
+
+    // The script exits cleanly without starting the callback server.
+    expect(exitCode).toBe(0);
+    expect(signal).toBeNull();
     expect(stderr).not.toContain("Missing required env var");
   });
 });
