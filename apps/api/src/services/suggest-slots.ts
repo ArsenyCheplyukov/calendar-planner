@@ -1,4 +1,4 @@
-import type { ParsedPlan, Suggestion, Preferences } from "@calendar-planner/shared";
+import type { ParsedPlan, Suggestion, Preferences, PlanCandidate } from "@calendar-planner/shared";
 import { getFreeBusy, type GoogleCalendarClient } from "../infrastructure/google/freebusy.js";
 import { currentWeek, parseWeekStart, weekOf, toIsoRange, type Week } from "../domain/week.js";
 import { findSlots } from "../domain/slot-finder.js";
@@ -8,6 +8,7 @@ import type { PreferencesStore } from "../infrastructure/preferences/store.js";
 
 export type CalendarClientFactory = (accessToken: string) => GoogleCalendarClient;
 export type PlanParser = (text: string, timeZone: string) => Promise<ParsedPlan>;
+export type PlanCandidatesParser = (text: string, timeZone: string) => Promise<ParsedPlan[]>;
 
 export interface SuggestSlotsInput {
   text: string;
@@ -89,6 +90,40 @@ export async function suggestSlots(
   const scored = scorePlan(parsed, context);
 
   return { parsed, suggestions: scored, preferences: context.preferences };
+}
+
+export interface SuggestSlotCandidatesDeps
+  extends Pick<SuggestSlotsDeps, "calendarClientFactory" | "getAccessToken" | "preferencesStore"> {
+  parsePlanCandidates: PlanCandidatesParser;
+}
+
+export async function suggestSlotCandidates(
+  input: SuggestSlotsInput,
+  deps: SuggestSlotCandidatesDeps,
+): Promise<{ candidates: PlanCandidate[]; selectedCandidateId: string; parsed: ParsedPlan; suggestions: Suggestion[] }> {
+  const { parsePlanCandidates } = deps;
+
+  const context = await buildSuggestSlotsContext(input, deps);
+  const parsedPlans = await parsePlanCandidates(input.text, context.effectiveTimeZone);
+
+  const candidates: PlanCandidate[] = parsedPlans.map((parsedPlan, index) => ({
+    candidateId: `candidate-${index + 1}`,
+    rank: index + 1,
+    parsedPlan,
+    suggestions: scorePlan(parsedPlan, context),
+  }));
+
+  const selectedCandidate = candidates[0];
+  if (!selectedCandidate) {
+    throw new Error("Plan parser returned no valid candidates");
+  }
+
+  return {
+    candidates,
+    selectedCandidateId: selectedCandidate.candidateId,
+    parsed: selectedCandidate.parsedPlan,
+    suggestions: selectedCandidate.suggestions,
+  };
 }
 
 export { toIsoRange };
