@@ -98,6 +98,14 @@ function waitForAuthorizationCode(redirectUri: string): Promise<string> {
 export async function runAuth(): Promise<void> {
   loadEnvFromFile(ENV_PATH);
 
+  const existingToken = process.env["GOOGLE_REFRESH_TOKEN"]?.trim();
+  const force = process.argv.includes("--force");
+  if (existingToken && !force) {
+    console.log("Refresh token already present in .env.");
+    console.log("Run `pnpm auth --force` if you want to re-authenticate.");
+    return;
+  }
+
   const clientId = getRequiredEnv("GOOGLE_CLIENT_ID");
   const clientSecret = getRequiredEnv("GOOGLE_CLIENT_SECRET");
   const redirectUri = getRequiredEnv("GOOGLE_REDIRECT_URI");
