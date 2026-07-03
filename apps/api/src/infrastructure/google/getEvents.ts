@@ -1,7 +1,12 @@
 import type { calendar_v3 } from "googleapis";
-import { createRequire } from "node:module";
+import { buildGoogleCalendarClient } from "./client.js";
 
 export interface GoogleEventsClient {
+  calendarList: {
+    list: (params: calendar_v3.Params$Resource$Calendarlist$List) => Promise<{
+      data: calendar_v3.Schema$CalendarList;
+    }>;
+  };
   events: {
     list: (params: calendar_v3.Params$Resource$Events$List) => Promise<{
       data: calendar_v3.Schema$Events;
@@ -57,31 +62,33 @@ function normalizeItem(item: RawItem): ListedEvent | null {
 export async function getEvents(
   from: string,
   to: string,
-  accessToken: string,
   client: GoogleEventsClient,
 ): Promise<ListedEvent[]> {
-  const res = await client.events.list({
-    calendarId: "",
-    timeMin: from,
-    timeMax: to,
-    singleEvents: true,
-    orderBy: "startTime",
-  });
+  const listRes = await client.calendarList.list({});
+  const calendars = listRes.data.items ?? [];
 
-  const items = (res.data.items ?? []) as RawItem[];
   const out: ListedEvent[] = [];
-  for (const item of items) {
-    const normalized = normalizeItem(item);
-    if (normalized) out.push(normalized);
+  for (const cal of calendars) {
+    if (!cal.id) continue;
+    const res = await client.events.list({
+      calendarId: cal.id,
+      timeMin: from,
+      timeMax: to,
+      singleEvents: true,
+      orderBy: "startTime",
+    });
+
+    const items = (res.data.items ?? []) as RawItem[];
+    for (const item of items) {
+      const normalized = normalizeItem({ ...item, calendarId: cal.id });
+      if (normalized) out.push(normalized);
+    }
   }
+
   return out;
 }
 
 /** Build an authenticated googleapis calendar client from an access token. */
 export function buildEventsListClient(accessToken: string): GoogleEventsClient {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { google } = createRequire(import.meta.url)("googleapis") as typeof import("googleapis");
-  const auth = new google.auth.OAuth2();
-  auth.setCredentials({ access_token: accessToken });
-  return google.calendar({ version: "v3", auth });
+  return buildGoogleCalendarClient(accessToken) as GoogleEventsClient;
 }

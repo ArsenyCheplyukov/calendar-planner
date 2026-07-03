@@ -7,6 +7,9 @@ type ListFactory = (token: string) => GoogleEventsClient;
 
 function makeFakeListFactory(items: unknown[] = []): ListFactory {
   return (_token: string) => ({
+    calendarList: {
+      list: vi.fn().mockResolvedValue({ data: { items: [{ id: "primary" }] } }),
+    },
     events: {
       list: vi.fn().mockResolvedValue({ data: { items } }),
     },
@@ -15,8 +18,11 @@ function makeFakeListFactory(items: unknown[] = []): ListFactory {
 
 function makeFailingListFactory(): ListFactory {
   return (_token: string) => ({
-    events: {
+    calendarList: {
       list: vi.fn().mockRejectedValue(new Error("503 service unavailable")),
+    },
+    events: {
+      list: vi.fn().mockRejectedValue(new Error("should not be called")),
     },
   });
 }

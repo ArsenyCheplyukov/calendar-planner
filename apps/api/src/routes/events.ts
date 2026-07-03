@@ -110,7 +110,7 @@ export async function eventsRoute(
 
       try {
         const client = listFactory(req.accessToken) as GoogleEventsClient;
-        const events: ListedEvent[] = await getEvents(from, to, req.accessToken, client);
+        const events: ListedEvent[] = await getEvents(from, to, client);
         return { events };
       } catch (e) {
         const message = e instanceof Error ? e.message : String(e);
