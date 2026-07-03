@@ -1,6 +1,5 @@
 import { PrismaClient, type Preferences as PrismaPreferences } from "@prisma/client";
-import type { Preferences } from "@calendar-planner/shared";
-import { DEFAULT_PREFERENCES } from "../../domain/scorer.js";
+import { DEFAULT_PREFERENCES, type Preferences } from "@calendar-planner/shared";
 
 /** Minimal Prisma surface the store depends on. Lets us mock in tests. */
 export interface PreferencesPrismaLike {

@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { scoreSlots, mergeWithHint, DEFAULT_PREFERENCES } from "./scorer.js";
+import { DEFAULT_PREFERENCES } from "@calendar-planner/shared";
+import { scoreSlots, mergeWithHint } from "./scorer.js";
 import type { Slot, ParsedPlan } from "@calendar-planner/shared";
 
 function slot(start: string, end: string): Slot {

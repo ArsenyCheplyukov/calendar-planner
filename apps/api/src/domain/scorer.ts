@@ -1,23 +1,12 @@
 import type { ScoredSlot, Slot, ParsedPlan, Preferences, PlanHint, EventType, TimeOfDay } from "@calendar-planner/shared";
 import {
+  DEFAULT_PREFERENCES,
   getLocalTimeZone,
   getParts,
   getWeekday,
   timeOfDayMinutesInTimeZone,
   ymdInTimeZone,
 } from "@calendar-planner/shared";
-
-export const DEFAULT_PREFERENCES: Preferences = {
-  workingHoursStart: "09:00",
-  workingHoursEnd: "19:00",
-  bufferMinutes: 15,
-  typeBiasFocus: "09:00-12:00",
-  typeBiasMeeting: "11:00-16:00",
-  typeBiasPersonal: "any",
-  typeBiasErrand: "16:00-19:00",
-  blackouts: [],
-  timeZone: "UTC",
-};
 
 const DAY_OF_WEEK_TO_INDEX: Record<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun", number> = {
   sun: 0, mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6,

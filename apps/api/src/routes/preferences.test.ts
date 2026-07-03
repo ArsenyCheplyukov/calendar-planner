@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import type { FastifyInstance } from "fastify";
 import { buildApp } from "../app.js";
-import { DEFAULT_PREFERENCES } from "../domain/scorer.js";
+import { DEFAULT_PREFERENCES } from "@calendar-planner/shared";
 import type { PreferencesStore } from "../infrastructure/preferences/store.js";
 
 function makeFakeStore(initial: Partial<import("@calendar-planner/shared").Preferences> | null = null): PreferencesStore {

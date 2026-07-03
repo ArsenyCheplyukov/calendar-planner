@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { PreferencesStore } from "./store.js";
-import { DEFAULT_PREFERENCES } from "../../domain/scorer.js";
+import { DEFAULT_PREFERENCES } from "@calendar-planner/shared";
 import type { Preferences } from "@calendar-planner/shared";
 
 interface MockRow {

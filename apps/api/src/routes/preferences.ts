@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import type { Preferences } from "@calendar-planner/shared";
-import { DEFAULT_PREFERENCES } from "../domain/scorer.js";
+import { DEFAULT_PREFERENCES } from "@calendar-planner/shared";
 import type { PreferencesStore } from "../infrastructure/preferences/store.js";
 
 const TIME_RE = /^\d{2}:\d{2}$/;
