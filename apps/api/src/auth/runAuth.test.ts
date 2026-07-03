@@ -73,12 +73,8 @@ function runAuthScript(
     // callback server, then terminate it so the test does not block forever.
     setTimeout(() => {
       if (resolved) return;
-      try {
-        process.kill(-child.pid!, "SIGTERM");
-      } catch {
-        child.kill("SIGTERM");
-      }
-    }, 1500);
+      child.kill("SIGTERM");
+    }, 3000);
   });
 }
 
