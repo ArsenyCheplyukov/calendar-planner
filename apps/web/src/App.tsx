@@ -10,6 +10,7 @@ import {
   type WeekViewSuggestion,
 } from "./components/WeekView/index.js";
 import { EventForm, type EventFormData } from "./components/EventForm/index.js";
+import { PlanCandidates } from "./components/PlanCandidates/index.js";
 import { EventsPopover, type EventItem } from "./components/EventsPopover/index.js";
 import type { Suggestion, ParsedPlan, PlanCandidate } from "@calendar-planner/shared";
 import styles from "./App.module.css";
@@ -208,6 +209,20 @@ export function App() {
     setEventForm({ kind: "manual" });
   }, []);
 
+  const handleCandidateSelect = useCallback((candidateId: string) => {
+    setPlanState((current) => {
+      if (current.kind !== "ready") return current;
+      const candidate = current.candidates.find((c) => c.candidateId === candidateId);
+      if (!candidate) return current;
+      return {
+        ...current,
+        selectedCandidateId: candidateId,
+        parsed: candidate.parsedPlan,
+        suggestions: candidate.suggestions,
+      };
+    });
+  }, []);
+
   const openSuggestionForm = useCallback((suggestion: Suggestion) => {
     if (planState.kind !== "ready") return;
     setCreateState({ kind: "idle" });
@@ -339,6 +354,11 @@ export function App() {
         {planState.kind === "ready" && (
           <div style={{ marginTop: "var(--space-6)" }} data-testid="suggestions-section">
             <h2 className={styles["section-title"]}>Suggestions</h2>
+            <PlanCandidates
+              candidates={planState.candidates}
+              selectedCandidateId={planState.selectedCandidateId}
+              onSelect={handleCandidateSelect}
+            />
             <Suggestions
               suggestions={planState.suggestions}
               onApprove={openSuggestionForm}

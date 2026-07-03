@@ -156,6 +156,94 @@ describe("App event creation flow", () => {
   });
 });
 
+  it("switches suggestions when a different candidate is selected", async () => {
+    const user = userEvent.setup();
+    const candidate1 = {
+      candidateId: "candidate-1",
+      rank: 1,
+      parsedPlan: {
+        title: "Фокус в понедельник",
+        durationMinutes: 60,
+        type: "focus",
+        deadline: null,
+        hint: { window: { dayOfWeek: "mon" } },
+      },
+      suggestions: [
+        {
+          start: "2026-07-06T09:00:00.000Z",
+          end: "2026-07-06T10:00:00.000Z",
+          score: 0.8,
+          reason: "пн 09:00–10:00, 60 мин (фокус)",
+        },
+      ],
+    };
+    const candidate2 = {
+      candidateId: "candidate-2",
+      rank: 2,
+      parsedPlan: {
+        title: "Фокус в среду",
+        durationMinutes: 60,
+        type: "focus",
+        deadline: null,
+        hint: { window: { dayOfWeek: "wed" } },
+      },
+      suggestions: [
+        {
+          start: "2026-07-08T09:00:00.000Z",
+          end: "2026-07-08T10:00:00.000Z",
+          score: 0.75,
+          reason: "ср 09:00–10:00, 60 мин (фокус)",
+        },
+      ],
+    };
+
+    const fetchMock = vi.fn().mockImplementation((url: string, init?: RequestInit) => {
+      if (url.includes("/api/week")) {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              week: { start: "2026-07-06T00:00:00.000Z", end: "2026-07-12T23:59:59.999Z" },
+              busy: {},
+            }),
+            { status: 200, headers: { "Content-Type": "application/json" } },
+          ),
+        );
+      }
+      if (url.includes("/api/plan") && init?.method === "POST") {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              candidates: [candidate1, candidate2],
+              selectedCandidateId: candidate1.candidateId,
+              parsed: candidate1.parsedPlan,
+              suggestions: candidate1.suggestions,
+            }),
+            { status: 200, headers: { "Content-Type": "application/json" } },
+          ),
+        );
+      }
+      return Promise.reject(new Error("unexpected: " + url));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<App />);
+    await waitFor(() => screen.getByTestId("week-view"));
+
+    const textarea = screen.getByRole("textbox", { name: /план/i });
+    await user.type(textarea, "подготовить презентацию");
+    await user.click(screen.getByRole("button", { name: /suggest/i }));
+
+    await waitFor(() => screen.getByTestId("plan-candidates"));
+    expect(screen.getAllByTestId("suggestion-card")).toHaveLength(1);
+    expect(screen.getByTestId("suggestions-list")).toHaveTextContent(/пн 09:00/);
+
+    await user.click(screen.getByRole("radio", { name: /среда/i }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("suggestions-list")).toHaveTextContent(/ср 09:00/);
+    });
+  });
+
   it("renders suggestions when the API returns the new candidate response shape", async () => {
     const user = userEvent.setup();
     const parsedPlan = {
