@@ -1,6 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { parsePlan, type ParsePlanOptions } from "../infrastructure/gemini/parser.js";
 import { suggestSlots, type CalendarClientFactory, type PlanParser } from "../services/suggest-slots.js";
+import type { PlanCandidate } from "@calendar-planner/shared";
 import type { PreferencesStore } from "../infrastructure/preferences/store.js";
 import { defaultPreferencesStore } from "../infrastructure/preferences/store.js";
 
@@ -54,7 +55,18 @@ export async function planRoute(
           preferencesStore: opts.preferencesStore ?? defaultPreferencesStore(),
         },
       );
-      return { parsed: result.parsed, suggestions: result.suggestions };
+      const candidate: PlanCandidate = {
+        candidateId: "candidate-1",
+        rank: 1,
+        parsedPlan: result.parsed,
+        suggestions: result.suggestions,
+      };
+      return {
+        candidates: [candidate],
+        selectedCandidateId: candidate.candidateId,
+        parsed: result.parsed,
+        suggestions: result.suggestions,
+      };
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
       return reply.status(502).send({ error: "upstream_error", message });

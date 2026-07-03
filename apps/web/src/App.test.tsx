@@ -156,6 +156,70 @@ describe("App event creation flow", () => {
   });
 });
 
+  it("renders suggestions when the API returns the new candidate response shape", async () => {
+    const user = userEvent.setup();
+    const parsedPlan = {
+      title: "Подготовить презентацию",
+      durationMinutes: 60,
+      type: "focus",
+      deadline: null,
+      hint: null,
+    };
+    const suggestions = [
+      {
+        start: "2026-07-08T09:00:00.000Z",
+        end: "2026-07-08T10:00:00.000Z",
+        score: 0.8,
+        reason: "ср 09:00–10:00, 60 мин (фокус)",
+      },
+    ];
+    const fetchMock = vi.fn().mockImplementation((url: string, init?: RequestInit) => {
+      if (url.includes("/api/week")) {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              week: { start: "2026-07-06T00:00:00.000Z", end: "2026-07-12T23:59:59.999Z" },
+              busy: {},
+            }),
+            { status: 200, headers: { "Content-Type": "application/json" } },
+          ),
+        );
+      }
+      if (url.includes("/api/plan") && init?.method === "POST") {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              candidates: [
+                {
+                  candidateId: "candidate-1",
+                  rank: 1,
+                  parsedPlan,
+                  suggestions,
+                },
+              ],
+              selectedCandidateId: "candidate-1",
+              parsed: parsedPlan,
+              suggestions,
+            }),
+            { status: 200, headers: { "Content-Type": "application/json" } },
+          ),
+        );
+      }
+      return Promise.reject(new Error("unexpected: " + url));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<App />);
+    await waitFor(() => screen.getByTestId("week-view"));
+
+    const textarea = screen.getByRole("textbox", { name: /план/i });
+    await user.type(textarea, "подготовить презентацию");
+    await user.click(screen.getByRole("button", { name: /suggest/i }));
+
+    await waitFor(() => screen.getByTestId("suggestions-list"));
+    expect(screen.getAllByTestId("suggestion-card")).toHaveLength(1);
+  });
+
 describe("App week navigation", () => {
   beforeEach(() => {
     vi.restoreAllMocks();

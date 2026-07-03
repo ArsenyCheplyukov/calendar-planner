@@ -11,7 +11,7 @@ import {
 } from "./components/WeekView/index.js";
 import { EventForm, type EventFormData } from "./components/EventForm/index.js";
 import { EventsPopover, type EventItem } from "./components/EventsPopover/index.js";
-import type { Suggestion, ParsedPlan } from "@calendar-planner/shared";
+import type { Suggestion, ParsedPlan, PlanCandidate } from "@calendar-planner/shared";
 import styles from "./App.module.css";
 
 type WeekResponse = {
@@ -26,7 +26,14 @@ type WeekState =
 
 type PlanState =
   | { kind: "idle" }
-  | { kind: "ready"; parsed: ParsedPlan; suggestions: Suggestion[]; originalText: string }
+  | {
+      kind: "ready";
+      candidates: PlanCandidate[];
+      selectedCandidateId: string;
+      parsed: ParsedPlan;
+      suggestions: Suggestion[];
+      originalText: string;
+    }
   | { kind: "error"; message: string };
 
 type CreateState =
@@ -165,9 +172,25 @@ export function App() {
         const body = (await res.json()) as {
           parsed: ParsedPlan;
           suggestions: Suggestion[];
+          candidates?: PlanCandidate[];
+          selectedCandidateId?: string;
         };
+        const candidates: PlanCandidate[] =
+          body.candidates && body.candidates.length > 0
+            ? body.candidates
+            : [
+                {
+                  candidateId: "candidate-1",
+                  rank: 1,
+                  parsedPlan: body.parsed,
+                  suggestions: body.suggestions,
+                },
+              ];
+        const selectedCandidateId = body.selectedCandidateId ?? candidates[0]!.candidateId;
         setPlanState({
           kind: "ready",
+          candidates,
+          selectedCandidateId,
           parsed: body.parsed,
           suggestions: body.suggestions,
           originalText: text,

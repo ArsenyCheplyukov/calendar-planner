@@ -93,6 +93,45 @@ describe("POST /api/plan (suggestions)", () => {
     await app.close();
   });
 
+  it("returns a candidates array with the selected candidate for a single interpretation", async () => {
+    const parsed = {
+      title: "Подготовить презентацию",
+      durationMinutes: 60,
+      type: "focus",
+      deadline: null,
+      hint: null,
+    };
+
+    vi.stubGlobal("fetch", mockGeminiAndCalendar({ parsed, busy: {} }));
+
+    const fakeCalendar = {
+      freebusy: {
+        query: vi.fn().mockResolvedValue({ data: { calendars: {} } }),
+      },
+    };
+
+    const app = await buildApp({ calendarClientFactory: () => fakeCalendar, preferencesStore: fakeStore });
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/plan",
+      payload: { text: "подготовить презентацию, час" },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = res.json() as {
+      candidates: Array<{ candidateId: string; rank: number; parsedPlan: unknown; suggestions: unknown[] }>;
+      selectedCandidateId: string;
+      parsed: unknown;
+      suggestions: unknown[];
+    };
+    expect(body.candidates).toHaveLength(1);
+    expect(body.selectedCandidateId).toBe(body.candidates[0]?.candidateId);
+    expect(body.candidates[0]?.rank).toBe(1);
+    expect(body.candidates[0]?.parsedPlan).toEqual(body.parsed);
+    expect(body.candidates[0]?.suggestions).toEqual(body.suggestions);
+    await app.close();
+  });
+
   it("returns 400 when text is empty", async () => {
     const app = await buildApp({ preferencesStore: fakeStore });
     const res = await app.inject({ method: "POST", url: "/api/plan", payload: { text: "" } });

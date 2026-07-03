@@ -36,6 +36,13 @@ export interface ScoredSlot extends Slot {
 
 export interface Suggestion extends ScoredSlot {}
 
+export interface PlanCandidate {
+  candidateId: string;
+  rank: number;
+  parsedPlan: ParsedPlan;
+  suggestions: Suggestion[];
+}
+
 export interface Preferences {
   workingHoursStart: string; // "HH:MM"
   workingHoursEnd: string;   // "HH:MM"
