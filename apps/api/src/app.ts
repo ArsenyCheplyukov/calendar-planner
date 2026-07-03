@@ -3,7 +3,7 @@ import cors from "@fastify/cors";
 import authPlugin from "./plugins/authPlugin.js";
 import { healthAuthRoute } from "./routes/healthAuth.js";
 import { weekRoute, type CalendarClientFactory } from "./routes/week.js";
-import { planRoute, type PlanParser } from "./routes/plan.js";
+import { planRoute, type PlanParser, type PlanCandidatesParser } from "./routes/plan.js";
 import { eventsRoute, type EventsClientFactory } from "./routes/events.js";
 import { preferencesRoute } from "./routes/preferences.js";
 import { buildCalendarClient } from "./infrastructure/google/freebusy.js";
@@ -20,6 +20,7 @@ export interface BuildAppOptions {
   eventsListClientFactory?: (accessToken: string) => unknown;
   geminiApiKey?: string;
   parsePlanFn?: PlanParser;
+  parsePlanCandidatesFn?: PlanCandidatesParser;
   preferencesStore?: PreferencesStore;
 }
 
@@ -59,6 +60,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   await app.register(planRoute, {
     geminiApiKey: options.geminiApiKey,
     parsePlanFn: options.parsePlanFn,
+    parsePlanCandidatesFn: options.parsePlanCandidatesFn,
     calendarClientFactory: options.calendarClientFactory,
     preferencesStore: options.preferencesStore,
   });

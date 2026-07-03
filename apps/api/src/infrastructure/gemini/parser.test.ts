@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { parsePlan } from "./parser.js";
+import { parsePlan, parsePlanCandidates } from "./parser.js";
 import type { ParsedPlan } from "@calendar-planner/shared";
 
 function buildGeminiResponse(parsed: unknown): Response {
@@ -82,5 +82,34 @@ describe("parsePlan", () => {
     await expect(
       parsePlan("test", { apiKey: "k", fetchImpl: fetchMock as unknown as typeof fetch }),
     ).rejects.toThrow(/Gemini API error: 500/);
+  });
+});
+
+describe("parsePlanCandidates", () => {
+  it("returns ranked candidates from a multi-candidate Gemini response", async () => {
+    const secondPlan: ParsedPlan = {
+      title: "Встреча с клиентом",
+      durationMinutes: 30,
+      type: "meeting",
+      deadline: null,
+      hint: { window: { dayOfWeek: "wed" } },
+    };
+    const fetchMock = vi.fn().mockResolvedValue(
+      buildGeminiResponse({ candidates: [VALID_PLAN, secondPlan] }),
+    );
+
+    const result = await parsePlanCandidates("подготовить презентацию", {
+      apiKey: "test-key",
+      fetchImpl: fetchMock as unknown as typeof fetch,
+    });
+
+    expect(result).toHaveLength(2);
+    expect(result[0]).toEqual(VALID_PLAN);
+    expect(result[1]).toEqual(secondPlan);
+
+    const [, init] = fetchMock.mock.calls[0]!;
+    const body = JSON.parse(init.body as string);
+    expect(body.generationConfig.responseSchema).toBeDefined();
+    expect(body.systemInstruction.parts[0].text).toMatch(/кандидат|интерпретаци/i);
   });
 });

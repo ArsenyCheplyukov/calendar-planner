@@ -1,13 +1,21 @@
 import type { FastifyInstance } from "fastify";
-import { parsePlan, type ParsePlanOptions } from "../infrastructure/gemini/parser.js";
-import { suggestSlots, type CalendarClientFactory, type PlanParser } from "../services/suggest-slots.js";
-import type { PlanCandidate } from "@calendar-planner/shared";
+import { parsePlanCandidates, type ParsePlanOptions } from "../infrastructure/gemini/parser.js";
+import {
+  buildSuggestSlotsContext,
+  scorePlan,
+  type CalendarClientFactory,
+  type PlanParser,
+} from "../services/suggest-slots.js";
+import type { PlanCandidate, ParsedPlan } from "@calendar-planner/shared";
 import type { PreferencesStore } from "../infrastructure/preferences/store.js";
 import { defaultPreferencesStore } from "../infrastructure/preferences/store.js";
+
+export type PlanCandidatesParser = (text: string, timeZone: string) => Promise<ParsedPlan[]>;
 
 export interface PlanRouteOptions {
   geminiApiKey?: string;
   parsePlanFn?: PlanParser;
+  parsePlanCandidatesFn?: PlanCandidatesParser;
   calendarClientFactory?: CalendarClientFactory;
   getAccessToken?: () => Promise<string | null>;
   preferencesStore?: PreferencesStore;
@@ -17,10 +25,10 @@ export async function planRoute(
   app: FastifyInstance,
   opts: PlanRouteOptions,
 ): Promise<void> {
-  const parse: PlanParser = opts.parsePlanFn
-    ? opts.parsePlanFn
+  const parseCandidates: PlanCandidatesParser = opts.parsePlanCandidatesFn
+    ? opts.parsePlanCandidatesFn
     : (t: string, tz: string) =>
-        parsePlan(t, {
+        parsePlanCandidates(t, {
           apiKey: opts.geminiApiKey ?? process.env["GEMINI_API_KEY"] ?? "",
           timeZone: tz,
         });
@@ -38,34 +46,42 @@ export async function planRoute(
     }
 
     try {
-      const result = await suggestSlots(
-        {
-          text,
-          startDate: req.body?.startDate,
-          timeZone: req.body?.timeZone,
-        },
-        {
-          parsePlan: parse,
-          calendarClientFactory:
-            opts.calendarClientFactory ??
-            (() => {
-              throw new Error("calendarClientFactory not provided");
-            }),
-          getAccessToken: getToken,
-          preferencesStore: opts.preferencesStore ?? defaultPreferencesStore(),
-        },
-      );
-      const candidate: PlanCandidate = {
-        candidateId: "candidate-1",
-        rank: 1,
-        parsedPlan: result.parsed,
-        suggestions: result.suggestions,
+      const input = {
+        text,
+        startDate: req.body?.startDate,
+        timeZone: req.body?.timeZone,
       };
+      const context = await buildSuggestSlotsContext(input, {
+        calendarClientFactory:
+          opts.calendarClientFactory ??
+          (() => {
+            throw new Error("calendarClientFactory not provided");
+          }),
+        getAccessToken: getToken,
+        preferencesStore: opts.preferencesStore ?? defaultPreferencesStore(),
+      });
+
+      const parsedPlans = await parseCandidates(text, context.effectiveTimeZone);
+      const candidates: PlanCandidate[] = parsedPlans.map((parsedPlan, index) => ({
+        candidateId: `candidate-${index + 1}`,
+        rank: index + 1,
+        parsedPlan,
+        suggestions: scorePlan(parsedPlan, context),
+      }));
+
+      const selectedCandidate = candidates[0];
+      if (!selectedCandidate) {
+        return reply.status(502).send({
+          error: "upstream_error",
+          message: "Plan parser returned no valid candidates",
+        });
+      }
+
       return {
-        candidates: [candidate],
-        selectedCandidateId: candidate.candidateId,
-        parsed: result.parsed,
-        suggestions: result.suggestions,
+        candidates,
+        selectedCandidateId: selectedCandidate.candidateId,
+        parsed: selectedCandidate.parsedPlan,
+        suggestions: selectedCandidate.suggestions,
       };
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);

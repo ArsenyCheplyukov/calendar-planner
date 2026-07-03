@@ -1,6 +1,6 @@
 import type { ParsedPlan, Suggestion, Preferences } from "@calendar-planner/shared";
 import { getFreeBusy, type GoogleCalendarClient } from "../infrastructure/google/freebusy.js";
-import { currentWeek, parseWeekStart, weekOf, toIsoRange } from "../domain/week.js";
+import { currentWeek, parseWeekStart, weekOf, toIsoRange, type Week } from "../domain/week.js";
 import { findSlots } from "../domain/slot-finder.js";
 import { scoreSlots, mergeWithHint } from "../domain/scorer.js";
 import { getLocalTimeZone } from "@calendar-planner/shared";
@@ -22,20 +22,22 @@ export interface SuggestSlotsDeps {
   preferencesStore: PreferencesStore;
 }
 
-export async function suggestSlots(
+export interface SuggestSlotsContext {
+  preferences: Preferences;
+  effectiveTimeZone: string;
+  week: Week;
+  busy: Awaited<ReturnType<typeof getFreeBusy>>;
+}
+
+export async function buildSuggestSlotsContext(
   input: SuggestSlotsInput,
-  deps: SuggestSlotsDeps,
-): Promise<{ parsed: ParsedPlan; suggestions: Suggestion[]; preferences: Preferences }> {
-  const { parsePlan, calendarClientFactory, getAccessToken, preferencesStore } = deps;
+  deps: Pick<SuggestSlotsDeps, "calendarClientFactory" | "getAccessToken" | "preferencesStore">,
+): Promise<SuggestSlotsContext> {
+  const { calendarClientFactory, getAccessToken, preferencesStore } = deps;
 
   const timeZone = input.timeZone ?? getLocalTimeZone();
-
   let preferences = await preferencesStore.getPreferences();
-  // The Owner's explicit preference overrides the device time zone.
   const effectiveTimeZone = preferences.timeZone || timeZone;
-
-  const parsed = await parsePlan(input.text, effectiveTimeZone);
-  preferences = mergeWithHint(preferences, parsed.hint);
 
   const startDate = input.startDate;
   const parsedStartDate = startDate ? parseWeekStart(startDate, effectiveTimeZone) : null;
@@ -50,16 +52,43 @@ export async function suggestSlots(
     busy = await getFreeBusy(week, accessToken, client, effectiveTimeZone);
   }
 
+  return { preferences, effectiveTimeZone, week, busy };
+}
+
+export function scorePlan(
+  parsed: ParsedPlan,
+  context: SuggestSlotsContext,
+): Suggestion[] {
+  const { preferences, effectiveTimeZone, week, busy } = context;
+  const preferencesWithHint = mergeWithHint(preferences, parsed.hint);
+
   const window = {
-    start: preferences.workingHoursStart,
-    end: preferences.workingHoursEnd,
+    start: preferencesWithHint.workingHoursStart,
+    end: preferencesWithHint.workingHoursEnd,
   };
-  const weekStart = week.start;
-  const slots = findSlots(busy, window, parsed.durationMinutes, preferences.bufferMinutes, weekStart, effectiveTimeZone);
+  const slots = findSlots(
+    busy,
+    window,
+    parsed.durationMinutes,
+    preferencesWithHint.bufferMinutes,
+    week.start,
+    effectiveTimeZone,
+  );
 
-  const scored = scoreSlots(slots, parsed, preferences, parsed.hint, effectiveTimeZone);
+  return scoreSlots(slots, parsed, preferencesWithHint, parsed.hint, effectiveTimeZone);
+}
 
-  return { parsed, suggestions: scored, preferences };
+export async function suggestSlots(
+  input: SuggestSlotsInput,
+  deps: SuggestSlotsDeps,
+): Promise<{ parsed: ParsedPlan; suggestions: Suggestion[]; preferences: Preferences }> {
+  const { parsePlan } = deps;
+
+  const context = await buildSuggestSlotsContext(input, deps);
+  const parsed = await parsePlan(input.text, context.effectiveTimeZone);
+  const scored = scorePlan(parsed, context);
+
+  return { parsed, suggestions: scored, preferences: context.preferences };
 }
 
 export { toIsoRange };

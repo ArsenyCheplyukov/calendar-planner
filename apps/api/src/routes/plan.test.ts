@@ -36,7 +36,10 @@ describe("POST /api/plan (suggestions)", () => {
             JSON.stringify({
               candidates: [
                 {
-                  content: { role: "model", parts: [{ text: JSON.stringify(opts.parsed) }] },
+                  content: {
+                    role: "model",
+                    parts: [{ text: JSON.stringify({ candidates: [opts.parsed] }) }],
+                  },
                 },
               ],
             }),
@@ -129,6 +132,61 @@ describe("POST /api/plan (suggestions)", () => {
     expect(body.candidates[0]?.rank).toBe(1);
     expect(body.candidates[0]?.parsedPlan).toEqual(body.parsed);
     expect(body.candidates[0]?.suggestions).toEqual(body.suggestions);
+    await app.close();
+  });
+
+  it("returns multiple scored candidates when the parser emits multiple interpretations", async () => {
+    const fakeCalendar = {
+      freebusy: {
+        query: vi.fn().mockResolvedValue({ data: { calendars: {} } }),
+      },
+    };
+
+    const app = await buildApp({
+      calendarClientFactory: () => fakeCalendar,
+      preferencesStore: fakeStore,
+      parsePlanCandidatesFn: async () => [
+        {
+          title: "Фокус в понедельник",
+          durationMinutes: 60,
+          type: "focus",
+          deadline: null,
+          hint: { window: { dayOfWeek: "mon" } },
+        },
+        {
+          title: "Фокус в среду",
+          durationMinutes: 60,
+          type: "focus",
+          deadline: null,
+          hint: { window: { dayOfWeek: "wed" } },
+        },
+      ],
+    });
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/plan",
+      payload: { text: "ambiguous", startDate: "2026-07-06" },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = res.json() as {
+      candidates: Array<{
+        candidateId: string;
+        rank: number;
+        parsedPlan: { title: string };
+        suggestions: Array<{ start: string }>;
+      }>;
+      selectedCandidateId: string;
+    };
+    expect(body.candidates).toHaveLength(2);
+    expect(body.selectedCandidateId).toBe(body.candidates[0]?.candidateId);
+    expect(body.candidates[0]?.rank).toBe(1);
+    expect(body.candidates[1]?.rank).toBe(2);
+    expect(body.candidates[0]?.parsedPlan.title).toBe("Фокус в понедельник");
+    expect(body.candidates[1]?.parsedPlan.title).toBe("Фокус в среду");
+    expect(body.candidates[0]?.suggestions[0]?.start).toMatch(/2026-07-06/);
+    expect(body.candidates[1]?.suggestions[0]?.start).toMatch(/2026-07-08/);
     await app.close();
   });
 

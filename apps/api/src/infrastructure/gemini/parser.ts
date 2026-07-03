@@ -71,6 +71,26 @@ const RESPONSE_SCHEMA = {
   required: ["title", "durationMinutes", "type", "deadline", "hint"],
 } as const;
 
+const MAX_CANDIDATES = 10;
+
+const CANDIDATES_RESPONSE_SCHEMA = {
+  type: "object",
+  properties: {
+    candidates: {
+      type: "array",
+      items: RESPONSE_SCHEMA,
+      maxItems: MAX_CANDIDATES,
+    },
+  },
+  required: ["candidates"],
+} as const;
+
+function buildCandidatesSystemInstruction(today: string, timeZone: string): string {
+  return `${buildSystemInstruction(today, timeZone)}
+
+Верни JSON строго по схеме с массивом candidates. Каждый элемент массива — ранжированная интерпретация плана (кандидат), отсортированная от наиболее вероятной к наименее вероятной. Включи от 1 до ${MAX_CANDIDATES} кандидатов.`;
+}
+
 export interface ParsePlanOptions {
   apiKey: string;
   fetchImpl?: typeof fetch;
@@ -129,6 +149,80 @@ export async function parsePlan(
   }
 
   return validateParsedPlan(raw);
+}
+
+export async function parsePlanCandidates(
+  text: string,
+  options: ParsePlanOptions,
+): Promise<ParsedPlan[]> {
+  const fetchImpl = options.fetchImpl ?? fetch;
+  const url = `${GEMINI_URL}?key=${encodeURIComponent(options.apiKey)}`;
+  const timeZone = options.timeZone ?? getLocalTimeZone();
+  const referenceDate = options.referenceDate ?? new Date();
+  const today = ymdInTimeZone(timeZone, referenceDate);
+
+  const body = {
+    systemInstruction: { parts: [{ text: buildCandidatesSystemInstruction(today, timeZone) }] },
+    contents: [{ role: "user", parts: [{ text }] }],
+    generationConfig: {
+      temperature: 0,
+      responseMimeType: "application/json",
+      responseSchema: CANDIDATES_RESPONSE_SCHEMA,
+      thinkingConfig: { thinkingBudget: 0 },
+    },
+  };
+
+  const res = await fetchImpl(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`Gemini API error: ${res.status} ${errText}`);
+  }
+
+  const json = (await res.json()) as {
+    candidates?: Array<{
+      content?: { parts?: Array<{ text?: string }> };
+    }>;
+  };
+
+  const textOut = json.candidates?.[0]?.content?.parts?.[0]?.text;
+  if (!textOut) {
+    throw new Error("Gemini returned no content");
+  }
+
+  let raw: unknown;
+  try {
+    raw = JSON.parse(textOut);
+  } catch {
+    throw new Error("Gemini returned non-JSON content");
+  }
+
+  if (typeof raw !== "object" || raw === null || !("candidates" in raw)) {
+    throw new Error("parsePlanCandidates: expected object with candidates array");
+  }
+
+  const list = (raw as { candidates: unknown }).candidates;
+  if (!Array.isArray(list)) {
+    throw new Error("parsePlanCandidates: candidates must be an array");
+  }
+
+  const validated = list.flatMap((item) => {
+    try {
+      return [validateParsedPlan(item)];
+    } catch {
+      return [];
+    }
+  });
+
+  if (validated.length === 0) {
+    throw new Error("parsePlanCandidates: all candidates failed validation");
+  }
+
+  return validated.slice(0, MAX_CANDIDATES);
 }
 
 const VALID_TYPES: readonly EventType[] = ["focus", "meeting", "personal", "errand"];
