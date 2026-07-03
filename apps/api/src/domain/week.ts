@@ -52,22 +52,24 @@ export function currentWeek(
   return { start: baseMonday, end: endOfDayInTimeZone(timeZone, sunday) };
 }
 
-export function previousWeek(week: Week): Week {
-  const start = new Date(week.start);
-  const end = new Date(week.end);
-  // Each Week stores Date objects whose wall-clock components are in the
-  // target time zone; subtracting whole days works by raw milliseconds.
-  start.setDate(week.start.getDate() - 7);
-  end.setDate(week.end.getDate() - 7);
-  return { start, end };
+export function previousWeek(
+  week: Week,
+  timeZone: string = getLocalTimeZone(),
+): Week {
+  return {
+    start: addDaysInTimeZone(timeZone, week.start, -7),
+    end: addDaysInTimeZone(timeZone, week.end, -7),
+  };
 }
 
-export function nextWeek(week: Week): Week {
-  const start = new Date(week.start);
-  const end = new Date(week.end);
-  start.setDate(week.start.getDate() + 7);
-  end.setDate(week.end.getDate() + 7);
-  return { start, end };
+export function nextWeek(
+  week: Week,
+  timeZone: string = getLocalTimeZone(),
+): Week {
+  return {
+    start: addDaysInTimeZone(timeZone, week.start, 7),
+    end: addDaysInTimeZone(timeZone, week.end, 7),
+  };
 }
 
 /** Convert a Week to RFC3339 strings with the target time zone offset. */

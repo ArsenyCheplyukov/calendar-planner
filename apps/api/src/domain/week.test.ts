@@ -81,6 +81,28 @@ describe("previousWeek / nextWeek", () => {
     expect(localDateKey(next.start)).toBe("2026-07-13");
     expect(localDateKey(next.end)).toBe("2026-07-19");
   });
+
+  it("previousWeek does not mutate the input Week", () => {
+    const originalStart = sample.start.getTime();
+    const originalEnd = sample.end.getTime();
+    previousWeek(sample);
+    expect(sample.start.getTime()).toBe(originalStart);
+    expect(sample.end.getTime()).toBe(originalEnd);
+  });
+
+  it("nextWeek does not mutate the input Week", () => {
+    const originalStart = sample.start.getTime();
+    const originalEnd = sample.end.getTime();
+    nextWeek(sample);
+    expect(sample.start.getTime()).toBe(originalStart);
+    expect(sample.end.getTime()).toBe(originalEnd);
+  });
+
+  it("previousWeek returns new Date instances", () => {
+    const prev = previousWeek(sample);
+    expect(prev.start).not.toBe(sample.start);
+    expect(prev.end).not.toBe(sample.end);
+  });
 });
 
 describe("toIsoRange", () => {
