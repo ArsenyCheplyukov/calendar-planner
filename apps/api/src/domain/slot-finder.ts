@@ -1,5 +1,4 @@
-import type { Slot } from "@calendar-planner/shared";
-import type { BusyMap } from "../infrastructure/google/freebusy.js";
+import type { Slot, BusyMap } from "@calendar-planner/shared";
 import {
   getLocalTimeZone,
   ymdInTimeZone,

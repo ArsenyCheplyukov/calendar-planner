@@ -1,9 +1,7 @@
 import type { calendar_v3 } from "googleapis";
 import { toIsoRange, type Week } from "../../domain/week.js";
-import { getLocalTimeZone, ymdInTimeZone } from "@calendar-planner/shared";
+import { getLocalTimeZone, groupIntervalsByDay, type BusyMap } from "@calendar-planner/shared";
 import { buildGoogleCalendarClient } from "./client.js";
-
-export type BusyMap = Record<string, Array<{ start: string; end: string }>>;
 
 export interface GoogleCalendarClient {
   freebusy: {
@@ -35,19 +33,16 @@ export async function getFreeBusy(
   });
 
   const calendars = res.data.calendars ?? {};
-  const out: BusyMap = {};
+  const intervals: Array<{ start: string; end: string }> = [];
 
   for (const cal of Object.values(calendars)) {
     for (const slot of cal.busy ?? []) {
       if (!slot.start || !slot.end) continue;
-      const start = new Date(slot.start);
-      const dayKey = ymdInTimeZone(timeZone, start);
-      if (!out[dayKey]) out[dayKey] = [];
-      out[dayKey].push({ start: slot.start, end: slot.end });
+      intervals.push({ start: slot.start, end: slot.end });
     }
   }
 
-  return out;
+  return groupIntervalsByDay(intervals, timeZone);
 }
 
 /** Build an authenticated googleapis calendar client from an access token. */

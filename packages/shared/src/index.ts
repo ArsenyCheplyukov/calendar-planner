@@ -1,6 +1,8 @@
 // Domain types shared between @calendar-planner/api and @calendar-planner/web.
 // These are deliberately minimal in slice 002 — full shapes land in later slices.
 
+import { ymdInTimeZone } from "./time-zone.js";
+
 export type EventType = "focus" | "meeting" | "personal" | "errand";
 
 export type TimeOfDay = "morning" | "midday" | "evening";
@@ -42,6 +44,46 @@ export interface PlanCandidate {
   rank: number;
   parsedPlan: ParsedPlan;
   suggestions: Suggestion[];
+}
+
+export interface BusyInterval {
+  start: string; // ISO datetime
+  end: string;   // ISO datetime
+}
+
+export type BusyMap = Record<string, BusyInterval[]>;
+
+export function groupIntervalsByDay(
+  intervals: BusyInterval[],
+  timeZone: string,
+): BusyMap {
+  const out: BusyMap = {};
+  for (const interval of intervals) {
+    const dayKey = ymdInTimeZone(timeZone, new Date(interval.start));
+    if (!out[dayKey]) out[dayKey] = [];
+    out[dayKey].push(interval);
+  }
+  return out;
+}
+
+export function filterSuggestionsByWeek<T extends { start: string }>(
+  suggestions: T[],
+  weekStart: string,
+  weekEnd: string,
+): T[] {
+  const ws = new Date(weekStart).getTime();
+  const we = new Date(weekEnd).getTime();
+  return suggestions.filter((s) => {
+    const t = new Date(s.start).getTime();
+    return t >= ws && t <= we;
+  });
+}
+
+export function filterSuggestionsByDay<T extends { start: string }>(
+  suggestions: T[],
+  dayKey: string,
+): T[] {
+  return suggestions.filter((s) => s.start.slice(0, 10) === dayKey);
 }
 
 export interface Preferences {

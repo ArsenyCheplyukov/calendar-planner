@@ -1,4 +1,5 @@
 import { useCallback, useMemo } from "react";
+import { filterSuggestionsByWeek } from "@calendar-planner/shared";
 import { Button } from "./components/Button/index.js";
 import { PlanInput } from "./components/PlanInput/index.js";
 import { Suggestions } from "./components/Suggestions/index.js";
@@ -28,12 +29,11 @@ export function App() {
   const suggestionsForWeek = useMemo((): WeekViewSuggestion[] => {
     if (planState.kind !== "ready") return [];
     if (weekState.kind !== "ready") return planState.suggestions;
-    const ws = new Date(weekState.data.week.start).getTime();
-    const we = new Date(weekState.data.week.end).getTime();
-    return planState.suggestions.filter((s) => {
-      const t = new Date(s.start).getTime();
-      return t >= ws && t <= we;
-    });
+    return filterSuggestionsByWeek(
+      planState.suggestions,
+      weekState.data.week.start,
+      weekState.data.week.end,
+    );
   }, [planState, weekState]);
 
   const handleSuggestionClick = useCallback(

@@ -1,4 +1,6 @@
 import { useMemo } from "react";
+import type { BusyMap } from "@calendar-planner/shared";
+import { filterSuggestionsByDay } from "@calendar-planner/shared";
 import { Button } from "../Button/index.js";
 import styles from "./WeekView.module.css";
 
@@ -7,7 +9,7 @@ export interface WeekViewWeek {
   end: string;   // ISO datetime
 }
 
-export type WeekViewBusyMap = Record<string, Array<{ start: string; end: string }>>;
+export type WeekViewBusyMap = BusyMap;
 
 export interface WeekViewSuggestion {
   start: string;
@@ -18,7 +20,7 @@ export interface WeekViewSuggestion {
 
 export interface WeekViewProps {
   week: WeekViewWeek;
-  busy: WeekViewBusyMap;
+  busy: BusyMap;
   suggestions?: WeekViewSuggestion[];
   today?: string; // YYYY-MM-DD; defaults to "now" in local time
   onPrev: () => void;
@@ -106,9 +108,7 @@ export function WeekView({
         {days.map((d, i) => {
           const key = ymdLocal(d);
           const dayBusy = busy[key] ?? [];
-          const daySuggestions: WeekViewSuggestion[] = suggestions.filter(
-            (s: WeekViewSuggestion) => s.start.slice(0, 10) === key,
-          );
+          const daySuggestions: WeekViewSuggestion[] = filterSuggestionsByDay(suggestions, key);
           const isPast = key < todayKey;
           return (
             <div

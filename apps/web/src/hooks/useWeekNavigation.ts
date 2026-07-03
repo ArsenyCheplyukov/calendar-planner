@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
 import { getLocalTimeZone, ymdInTimeZone } from "@calendar-planner/shared";
-import type { WeekViewWeek, WeekViewBusyMap } from "../components/WeekView/index.js";
+import type { BusyMap } from "@calendar-planner/shared";
+import type { WeekViewWeek } from "../components/WeekView/index.js";
 
 type WeekResponse = {
   week: WeekViewWeek;
-  busy: WeekViewBusyMap;
+  busy: BusyMap;
 };
 
 export type WeekState =

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { findSlots, type WorkingWindow } from "./slot-finder.js";
-import type { BusyMap } from "../infrastructure/google/freebusy.js";
+import type { BusyMap } from "@calendar-planner/shared";
 
 const WINDOW: WorkingWindow = { start: "09:00", end: "19:00" };
 
