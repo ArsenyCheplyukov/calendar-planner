@@ -98,76 +98,41 @@ export interface ParsePlanOptions {
   timeZone?: string;
 }
 
-export async function parsePlan(
-  text: string,
-  options: ParsePlanOptions,
-): Promise<ParsedPlan> {
-  const fetchImpl = options.fetchImpl ?? fetch;
-  const url = `${GEMINI_URL}?key=${encodeURIComponent(options.apiKey)}`;
-  const timeZone = options.timeZone ?? getLocalTimeZone();
-  const referenceDate = options.referenceDate ?? new Date();
-  const today = ymdInTimeZone(timeZone, referenceDate);
-
-  const body = {
-    systemInstruction: { parts: [{ text: buildSystemInstruction(today, timeZone) }] },
-    contents: [{ role: "user", parts: [{ text }] }],
-    generationConfig: {
-      temperature: 0,
-      responseMimeType: "application/json",
-      responseSchema: RESPONSE_SCHEMA,
-      thinkingConfig: { thinkingBudget: 0 },
-    },
+interface GeminiRequestShape {
+  systemInstruction: { parts: Array<{ text: string }> };
+  contents: Array<{ role: string; parts: Array<{ text: string }> }>;
+  generationConfig: {
+    temperature: number;
+    responseMimeType: string;
+    responseSchema: object;
+    thinkingConfig: { thinkingBudget: number };
   };
-
-  const res = await fetchImpl(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`Gemini API error: ${res.status} ${text}`);
-  }
-
-  const json = (await res.json()) as {
-    candidates?: Array<{
-      content?: { parts?: Array<{ text?: string }> };
-    }>;
-  };
-
-  const textOut = json.candidates?.[0]?.content?.parts?.[0]?.text;
-  if (!textOut) {
-    throw new Error("Gemini returned no content");
-  }
-
-  let raw: unknown;
-  try {
-    raw = JSON.parse(textOut);
-  } catch {
-    throw new Error("Gemini returned non-JSON content");
-  }
-
-  return validateParsedPlan(raw);
 }
 
-export async function parsePlanCandidates(
-  text: string,
-  options: ParsePlanOptions,
-): Promise<ParsedPlan[]> {
+interface GeminiExecutorOptions {
+  apiKey: string;
+  text: string;
+  systemInstruction: string;
+  responseSchema: object;
+  fetchImpl?: typeof fetch;
+  referenceDate?: Date;
+  timeZone?: string;
+}
+
+async function executeGeminiParse(options: GeminiExecutorOptions): Promise<unknown> {
   const fetchImpl = options.fetchImpl ?? fetch;
   const url = `${GEMINI_URL}?key=${encodeURIComponent(options.apiKey)}`;
   const timeZone = options.timeZone ?? getLocalTimeZone();
   const referenceDate = options.referenceDate ?? new Date();
   const today = ymdInTimeZone(timeZone, referenceDate);
 
-  const body = {
-    systemInstruction: { parts: [{ text: buildCandidatesSystemInstruction(today, timeZone) }] },
-    contents: [{ role: "user", parts: [{ text }] }],
+  const body: GeminiRequestShape = {
+    systemInstruction: { parts: [{ text: options.systemInstruction }] },
+    contents: [{ role: "user", parts: [{ text: options.text }] }],
     generationConfig: {
       temperature: 0,
       responseMimeType: "application/json",
-      responseSchema: CANDIDATES_RESPONSE_SCHEMA,
+      responseSchema: options.responseSchema,
       thinkingConfig: { thinkingBudget: 0 },
     },
   };
@@ -200,6 +165,48 @@ export async function parsePlanCandidates(
   } catch {
     throw new Error("Gemini returned non-JSON content");
   }
+
+  return raw;
+}
+
+export async function parsePlan(
+  text: string,
+  options: ParsePlanOptions,
+): Promise<ParsedPlan> {
+  const timeZone = options.timeZone ?? getLocalTimeZone();
+  const referenceDate = options.referenceDate ?? new Date();
+  const today = ymdInTimeZone(timeZone, referenceDate);
+
+  const raw = await executeGeminiParse({
+    apiKey: options.apiKey,
+    text,
+    systemInstruction: buildSystemInstruction(today, timeZone),
+    responseSchema: RESPONSE_SCHEMA,
+    fetchImpl: options.fetchImpl,
+    referenceDate,
+    timeZone,
+  });
+
+  return validateParsedPlan(raw);
+}
+
+export async function parsePlanCandidates(
+  text: string,
+  options: ParsePlanOptions,
+): Promise<ParsedPlan[]> {
+  const timeZone = options.timeZone ?? getLocalTimeZone();
+  const referenceDate = options.referenceDate ?? new Date();
+  const today = ymdInTimeZone(timeZone, referenceDate);
+
+  const raw = await executeGeminiParse({
+    apiKey: options.apiKey,
+    text,
+    systemInstruction: buildCandidatesSystemInstruction(today, timeZone),
+    responseSchema: CANDIDATES_RESPONSE_SCHEMA,
+    fetchImpl: options.fetchImpl,
+    referenceDate,
+    timeZone,
+  });
 
   if (typeof raw !== "object" || raw === null || !("candidates" in raw)) {
     throw new Error("parsePlanCandidates: expected object with candidates array");
