@@ -16,17 +16,18 @@ export async function planRoute(
   app: FastifyInstance,
   opts: PlanRouteOptions,
 ): Promise<void> {
-  const parse = opts.parsePlanFn
+  const parse: PlanParser = opts.parsePlanFn
     ? opts.parsePlanFn
-    : (t: string) =>
+    : (t: string, tz: string) =>
         parsePlan(t, {
           apiKey: opts.geminiApiKey ?? process.env["GEMINI_API_KEY"] ?? "",
+          timeZone: tz,
         });
 
   const getToken: () => Promise<string | null> =
     opts.getAccessToken ?? (() => Promise.resolve(null));
 
-  app.post<{ Body: { text?: unknown; startDate?: string } }>("/api/plan", async (req, reply) => {
+  app.post<{ Body: { text?: unknown; startDate?: string; timeZone?: string } }>("/api/plan", async (req, reply) => {
     const text = req.body?.text;
     if (typeof text !== "string" || text.trim().length === 0) {
       return reply.status(400).send({
@@ -37,7 +38,11 @@ export async function planRoute(
 
     try {
       const result = await suggestSlots(
-        { text, startDate: req.body?.startDate },
+        {
+          text,
+          startDate: req.body?.startDate,
+          timeZone: req.body?.timeZone,
+        },
         {
           parsePlan: parse,
           calendarClientFactory:

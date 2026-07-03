@@ -19,5 +19,6 @@ model Preferences {
   typeBiasPersonal   String   @default("any")
   typeBiasErrand     String   @default("16:00-19:00")
   blackoutsJson      String   @default("[]")
+  timeZone           String   @default("UTC")
   updatedAt          DateTime @updatedAt
 }

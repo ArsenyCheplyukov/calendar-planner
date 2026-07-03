@@ -12,6 +12,7 @@ const DEFAULTS: SettingsPrefs = {
   typeBiasPersonal: "any",
   typeBiasErrand: "16:00-19:00",
   blackouts: [],
+  timeZone: "UTC",
 };
 
 function makeFetchMock(prefs: SettingsPrefs) {

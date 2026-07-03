@@ -39,9 +39,21 @@ type EventsPopoverState =
 
 type Toast = { id: number; message: string; tone: "success" | "error" };
 
+function getDeviceTimeZone(): string {
+  return Intl.DateTimeFormat().resolvedOptions().timeZone;
+}
+
 function todayYmd(): string {
+  const tz = getDeviceTimeZone();
   const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: tz,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(d);
+  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? "";
+  return `${get("year")}-${get("month")}-${get("day")}`;
 }
 
 function addDaysYmd(ymd: string, days: number): string {
@@ -55,7 +67,11 @@ function addDaysYmd(ymd: string, days: number): string {
 }
 
 function buildWeekUrl(start: string | null): string {
-  return start ? `/api/week?start=${start}` : "/api/week";
+  const tz = encodeURIComponent(getDeviceTimeZone());
+  if (start) {
+    return `/api/week?start=${start}&timeZone=${tz}`;
+  }
+  return `/api/week?timeZone=${tz}`;
 }
 
 export function App() {
@@ -128,7 +144,7 @@ export function App() {
         const res = await fetch("/api/plan", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text }),
+          body: JSON.stringify({ text, timeZone: getDeviceTimeZone() }),
         });
         if (res.status === 400) {
           const body = (await res.json().catch(() => ({}))) as { message?: string };

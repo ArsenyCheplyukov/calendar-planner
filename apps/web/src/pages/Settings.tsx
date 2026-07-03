@@ -13,6 +13,7 @@ export type SettingsPrefs = {
   typeBiasPersonal: string;
   typeBiasErrand: string;
   blackouts: Array<{ dayOfWeek: string; start: string; end: string }>;
+  timeZone: string;
 };
 
 const DEFAULTS: SettingsPrefs = {
@@ -24,6 +25,7 @@ const DEFAULTS: SettingsPrefs = {
   typeBiasPersonal: "any",
   typeBiasErrand: "16:00-19:00",
   blackouts: [],
+  timeZone: "UTC",
 };
 
 type Status =
@@ -91,8 +93,8 @@ export function Settings() {
       <div className={styles["header"]}>
         <h1 className={styles["title"]}>Settings</h1>
         <p className={styles["subtitle"]}>
-          Working hours, buffer, and type biases. Changes apply to the next plan
-          you create.
+          Working hours, buffer, time zone, and type biases. Changes apply to the
+          next plan you create.
         </p>
       </div>
 
@@ -126,6 +128,24 @@ export function Settings() {
                 }
               />
             </div>
+          </div>
+        </div>
+      </Card>
+
+      <Card padding="md">
+        <div className={styles["section"]}>
+          <h2 className={styles["sectionTitle"]}>Time zone</h2>
+          <div className={styles["field"]}>
+            <label className={styles["label"]} htmlFor="timeZone">
+              IANA time zone (e.g. Europe/Moscow)
+            </label>
+            <Input
+              id="timeZone"
+              value={draft.timeZone}
+              onChange={(e) =>
+                setDraft({ ...draft, timeZone: e.target.value })
+              }
+            />
           </div>
         </div>
       </Card>

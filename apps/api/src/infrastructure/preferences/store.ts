@@ -31,6 +31,7 @@ function rowToPreferences(row: PrismaPreferences): Preferences {
     typeBiasPersonal: row.typeBiasPersonal,
     typeBiasErrand: row.typeBiasErrand,
     blackouts,
+    timeZone: row.timeZone,
   };
 }
 
@@ -45,6 +46,7 @@ function defaultsToRow(): Omit<PrismaPreferences, "updatedAt"> {
     typeBiasPersonal: DEFAULT_PREFERENCES.typeBiasPersonal,
     typeBiasErrand: DEFAULT_PREFERENCES.typeBiasErrand,
     blackoutsJson: JSON.stringify(DEFAULT_PREFERENCES.blackouts),
+    timeZone: DEFAULT_PREFERENCES.timeZone,
   };
 }
 
@@ -71,6 +73,7 @@ export class PreferencesStore {
     if (partial.typeBiasPersonal !== undefined) data.typeBiasPersonal = partial.typeBiasPersonal;
     if (partial.typeBiasErrand !== undefined) data.typeBiasErrand = partial.typeBiasErrand;
     if (partial.blackouts !== undefined) data.blackoutsJson = JSON.stringify(partial.blackouts);
+    if (partial.timeZone !== undefined) data.timeZone = partial.timeZone;
 
     const result = await this.prisma.preferences.upsert({
       where: { id: 1 },

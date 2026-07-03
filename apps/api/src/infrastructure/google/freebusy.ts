@@ -1,6 +1,7 @@
 import { calendar_v3 } from "googleapis";
 import { createRequire } from "node:module";
 import { toIsoRange, type Week } from "../../domain/week.js";
+import { getLocalTimeZone, ymdInTimeZone } from "../../domain/time-zone.js";
 
 export type BusyMap = Record<string, Array<{ start: string; end: string }>>;
 
@@ -15,14 +16,15 @@ export interface GoogleCalendarClient {
 /**
  * Read free/busy blocks for `week` across all calendars the user has
  * subscribed to. Privacy-first: titles are not fetched. Returns a map
- * keyed by local YYYY-MM-DD with the busy intervals in that day.
+ * keyed by YYYY-MM-DD in `timeZone` with the busy intervals in that day.
  */
 export async function getFreeBusy(
   week: Week,
   accessToken: string,
   client: GoogleCalendarClient,
+  timeZone: string = getLocalTimeZone(),
 ): Promise<BusyMap> {
-  const { timeMin, timeMax } = toIsoRange(week);
+  const { timeMin, timeMax } = toIsoRange(week, timeZone);
 
   const res = await client.freebusy.query({
     requestBody: {
@@ -38,7 +40,8 @@ export async function getFreeBusy(
   for (const cal of Object.values(calendars)) {
     for (const slot of cal.busy ?? []) {
       if (!slot.start || !slot.end) continue;
-      const dayKey = slot.start.slice(0, 10); // YYYY-MM-DD
+      const start = new Date(slot.start);
+      const dayKey = ymdInTimeZone(timeZone, start);
       if (!out[dayKey]) out[dayKey] = [];
       out[dayKey].push({ start: slot.start, end: slot.end });
     }

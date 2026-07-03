@@ -1,4 +1,11 @@
 import type { ScoredSlot, Slot, ParsedPlan, Preferences, PlanHint, EventType, TimeOfDay } from "@calendar-planner/shared";
+import {
+  getLocalTimeZone,
+  getParts,
+  getWeekday,
+  timeOfDayMinutesInTimeZone,
+  ymdInTimeZone,
+} from "./time-zone.js";
 
 export const DEFAULT_PREFERENCES: Preferences = {
   workingHoursStart: "09:00",
@@ -9,6 +16,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
   typeBiasPersonal: "any",
   typeBiasErrand: "16:00-19:00",
   blackouts: [],
+  timeZone: "UTC",
 };
 
 const DAY_OF_WEEK_TO_INDEX: Record<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun", number> = {
@@ -56,20 +64,16 @@ function biasForType(type: EventType, preferences: Preferences): { startH: numbe
   return parseRange(raw);
 }
 
-function timeOfDayMinutes(d: Date): number {
-  return d.getHours() * 60 + d.getMinutes();
-}
-
 function inRange(minutes: number, range: { startH: number; startM: number; endH: number; endM: number }): boolean {
   const start = range.startH * 60 + range.startM;
   const end = range.endH * 60 + range.endM;
   return minutes >= start && minutes < end;
 }
 
-function typeBiasBonus(slot: Slot, type: EventType, preferences: Preferences): number {
+function typeBiasBonus(slot: Slot, type: EventType, preferences: Preferences, timeZone: string): number {
   const range = biasForType(type, preferences);
   if (!range) return 0.2; // "any" = neutral bonus
-  const startMin = timeOfDayMinutes(new Date(slot.start));
+  const startMin = timeOfDayMinutesInTimeZone(timeZone, new Date(slot.start));
   return inRange(startMin, range) ? 0.3 : 0;
 }
 
@@ -85,19 +89,16 @@ function deadlinePenalty(slot: Slot, deadline: string | null | undefined): numbe
   return 0;
 }
 
-function ymdLocal(d: Date): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
-}
-
-function reasonForSlot(slot: Slot, type: EventType, preferences: Preferences, hint: PlanHint | null | undefined): string {
+function reasonForSlot(slot: Slot, type: EventType, preferences: Preferences, hint: PlanHint | null | undefined, timeZone: string): string {
   const start = new Date(slot.start);
   const end = new Date(slot.end);
-  const startDay = DAY_NAMES_RU[start.getDay()] ?? "";
-  const endDay = DAY_NAMES_RU[end.getDay()] ?? "";
-  const hh = (d: Date) => `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  const startParts = getParts(timeZone, start);
+  const endParts = getParts(timeZone, end);
+  const startDayIndex = getWeekday(timeZone, start);
+  const endDayIndex = getWeekday(timeZone, end);
+  const startDay = DAY_NAMES_RU[startDayIndex] ?? "";
+  const hh = (parts: ReturnType<typeof getParts>) =>
+    `${String(parts.hour).padStart(2, "0")}:${String(parts.minute).padStart(2, "0")}`;
 
   const typeName =
     type === "focus" ? "фокус-работа" :
@@ -106,23 +107,23 @@ function reasonForSlot(slot: Slot, type: EventType, preferences: Preferences, hi
     "поручение";
 
   const durationMin = Math.round((end.getTime() - start.getTime()) / 60000);
-  return `${startDay} ${hh(start)}–${hh(end)}, ${durationMin} мин (${typeName})`;
+  return `${startDay} ${hh(startParts)}–${hh(endParts)}, ${durationMin} мин (${typeName})`;
 }
 
 const DAY_NAMES_RU = ["вс", "пн", "вт", "ср", "чт", "пт", "сб"];
 
-function filterByHint(slots: Slot[], hint: PlanHint | null | undefined): Slot[] {
+function filterByHint(slots: Slot[], hint: PlanHint | null | undefined, timeZone: string): Slot[] {
   if (!hint?.window) return slots;
   const win = hint.window;
   return slots.filter((s) => {
     const start = new Date(s.start);
     if (win.dayOfWeek) {
-      const dow = start.getDay();
+      const dow = getWeekday(timeZone, start);
       const expected = DAY_OF_WEEK_TO_INDEX[win.dayOfWeek];
       if (dow !== expected) return false;
     }
     if (win.timeOfDay) {
-      const minutes = timeOfDayMinutes(start);
+      const minutes = timeOfDayMinutesInTimeZone(timeZone, start);
       const { start: startStr, end: endStr } = TIME_OF_DAY_WINDOWS[win.timeOfDay]!;
       const [startH, startM] = startStr.split(":").map(Number);
       const [endH, endM] = endStr.split(":").map(Number);
@@ -130,7 +131,7 @@ function filterByHint(slots: Slot[], hint: PlanHint | null | undefined): Slot[] 
       if (!inRange(minutes, range)) return false;
     }
     if (win.date) {
-      if (ymdLocal(start) !== win.date) return false;
+      if (ymdInTimeZone(timeZone, start) !== win.date) return false;
     }
     return true;
   });
@@ -141,22 +142,23 @@ export function scoreSlots(
   plan: ParsedPlan,
   preferences: Preferences,
   hint?: PlanHint | null,
+  timeZone: string = getLocalTimeZone(),
 ): ScoredSlot[] {
   const effectiveHint = hint ?? plan.hint ?? null;
   const effectiveDeadline = effectiveHint?.deadline ?? plan.deadline ?? null;
 
-  const filtered = filterByHint(slots, effectiveHint);
+  const filtered = filterByHint(slots, effectiveHint, timeZone);
   if (filtered.length === 0) return [];
 
   const scored: ScoredSlot[] = filtered.map((slot) => {
-    const typeBonus = typeBiasBonus(slot, plan.type, preferences);
+    const typeBonus = typeBiasBonus(slot, plan.type, preferences, timeZone);
     const dlPenalty = deadlinePenalty(slot, effectiveDeadline);
     const base = 0.5;
     const score = Math.max(0, Math.min(1, base + typeBonus + dlPenalty));
     return {
       ...slot,
       score,
-      reason: reasonForSlot(slot, plan.type, preferences, effectiveHint),
+      reason: reasonForSlot(slot, plan.type, preferences, effectiveHint, timeZone),
     };
   });
 

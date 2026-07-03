@@ -9,6 +9,25 @@ function isValidTime(s: unknown): s is string {
   return typeof s === "string" && TIME_RE.test(s);
 }
 
+function isValidTimeZone(s: unknown): boolean {
+  if (typeof s !== "string" || s.length === 0) return false;
+  try {
+    if (typeof Intl !== "undefined" && "supportedValuesOf" in Intl) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const zones = (Intl as any).supportedValuesOf("timeZone") as string[];
+      return zones.includes(s);
+    }
+  } catch {
+    // fall through to runtime check
+  }
+  try {
+    Intl.DateTimeFormat(undefined, { timeZone: s });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function validate(partial: Partial<Preferences>): string | null {
   if (partial.workingHoursStart !== undefined && !isValidTime(partial.workingHoursStart)) {
     return "workingHoursStart must be HH:MM";
@@ -34,6 +53,9 @@ function validate(partial: Partial<Preferences>): string | null {
   }
   if (partial.blackouts !== undefined && !Array.isArray(partial.blackouts)) {
     return "blackouts must be an array";
+  }
+  if (partial.timeZone !== undefined && !isValidTimeZone(partial.timeZone)) {
+    return "timeZone must be a valid IANA time zone";
   }
 
   // Cross-field: end > start

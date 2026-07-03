@@ -1,98 +1,91 @@
+import {
+  getLocalTimeZone,
+  getParts,
+  getWeekday,
+  startOfDayInTimeZone,
+  endOfDayInTimeZone,
+  addDaysInTimeZone,
+  formatRfc3339,
+  parseYmdInTimeZone,
+  dateFromParts,
+} from "./time-zone.js";
+
 export interface Week {
-  start: Date; // local Monday 00:00:00.000
-  end: Date;   // local Sunday 23:59:59.999
+  start: Date; // Monday 00:00:00.000 in the target time zone
+  end: Date;   // Sunday 23:59:59.999 in the target time zone
 }
 
 export interface IsoRange {
-  timeMin: string; // RFC3339 with offset
+  timeMin: string; // RFC3339 with the target time zone offset
   timeMax: string;
 }
 
-function startOfLocalDay(d: Date): Date {
-  return new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0);
-}
-
-function endOfLocalDay(d: Date): Date {
-  return new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999);
-}
-
-/** Local-time Monday on or before `now`. */
-function mondayOf(now: Date): Date {
-  const day = now.getDay(); // 0=Sun, 1=Mon, …, 6=Sat
+/** Monday on or before `now` in `timeZone`. */
+function mondayOf(now: Date, timeZone: string): Date {
+  const day = getWeekday(timeZone, now); // 0=Sun, 1=Mon, …, 6=Sat
   const offsetToMonday = day === 0 ? -6 : 1 - day; // Sun → -6, Mon → 0, Tue → -1, …, Sat → -5
-  const monday = new Date(now);
-  monday.setDate(now.getDate() + offsetToMonday);
-  return startOfLocalDay(monday);
+  const parts = getParts(timeZone, now);
+  return dateFromParts(timeZone, {
+    year: parts.year,
+    month: parts.month,
+    day: parts.day + offsetToMonday,
+    hour: 0,
+    minute: 0,
+    second: 0,
+    millisecond: 0,
+  });
 }
 
 /** If today is Sat/Sun, jump to next Monday. Otherwise the current Mon–Sun. */
-export function currentWeek(now: Date = new Date()): Week {
-  const day = now.getDay();
-  const baseMonday = mondayOf(now);
+export function currentWeek(
+  now: Date = new Date(),
+  timeZone: string = getLocalTimeZone(),
+): Week {
+  const day = getWeekday(timeZone, now);
+  const baseMonday = mondayOf(now, timeZone);
   if (day === 0 || day === 6) {
-    baseMonday.setDate(baseMonday.getDate() + 7);
+    baseMonday.setTime(
+      addDaysInTimeZone(timeZone, baseMonday, 7).getTime(),
+    );
   }
-  const sunday = new Date(baseMonday);
-  sunday.setDate(baseMonday.getDate() + 6);
-  return { start: baseMonday, end: endOfLocalDay(sunday) };
+  const sunday = addDaysInTimeZone(timeZone, baseMonday, 6);
+  return { start: baseMonday, end: endOfDayInTimeZone(timeZone, sunday) };
 }
 
 export function previousWeek(week: Week): Week {
   const start = new Date(week.start);
-  start.setDate(week.start.getDate() - 7);
   const end = new Date(week.end);
+  // Each Week stores Date objects whose wall-clock components are in the
+  // target time zone; subtracting whole days works by raw milliseconds.
+  start.setDate(week.start.getDate() - 7);
   end.setDate(week.end.getDate() - 7);
   return { start, end };
 }
 
 export function nextWeek(week: Week): Week {
   const start = new Date(week.start);
-  start.setDate(week.start.getDate() + 7);
   const end = new Date(week.end);
+  start.setDate(week.start.getDate() + 7);
   end.setDate(week.end.getDate() + 7);
   return { start, end };
 }
 
-/** Convert a Week to RFC3339 strings (with local TZ offset, not Z). */
-export function toIsoRange(week: Week): IsoRange {
+/** Convert a Week to RFC3339 strings with the target time zone offset. */
+export function toIsoRange(week: Week, timeZone: string = getLocalTimeZone()): IsoRange {
   return {
-    timeMin: formatRfc3339(week.start),
-    timeMax: formatRfc3339(week.end),
+    timeMin: formatRfc3339(week.start, timeZone),
+    timeMax: formatRfc3339(week.end, timeZone),
   };
 }
 
-function pad(n: number, w = 2): string {
-  return String(n).padStart(w, "0");
-}
-
-function formatRfc3339(d: Date): string {
-  const offsetMin = -d.getTimezoneOffset(); // minutes east of UTC
-  const sign = offsetMin >= 0 ? "+" : "-";
-  const abs = Math.abs(offsetMin);
-  const off = `${sign}${pad(Math.floor(abs / 60))}:${pad(abs % 60)}`;
-  const ms = d.getMilliseconds();
-  const msPart = ms > 0 ? `.${pad(ms, 3)}` : "";
-  return (
-    `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}` +
-    `T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}` +
-    `${msPart}${off}`
-  );
-}
-
-/** Parse a YYYY-MM-DD string into a Date at local midnight. Returns null on bad input. */
-export function parseWeekStart(input: string): Date | null {
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(input);
-  if (!m) return null;
-  const [, y, mo, d] = m;
-  const date = new Date(Number(y), Number(mo) - 1, Number(d), 0, 0, 0, 0);
-  if (Number.isNaN(date.getTime())) return null;
-  return date;
+/** Parse a YYYY-MM-DD string into a Date at midnight in `timeZone`. */
+export function parseWeekStart(input: string, timeZone: string = getLocalTimeZone()): Date | null {
+  return parseYmdInTimeZone(timeZone, input);
 }
 
 /** Build a Week from any date in the week (Mon 00:00 → Sun 23:59:59.999). */
-export function weekOf(d: Date): Week {
-  const monday = mondayOf(d);
-  const sunday = new Date(monday);
-  sunday.setDate(monday.getDate() + 6);
-  return { start: monday, end: endOfLocalDay(sunday) };
+export function weekOf(d: Date, timeZone: string = getLocalTimeZone()): Week {
+  const monday = mondayOf(d, timeZone);
+  const sunday = addDaysInTimeZone(timeZone, monday, 6);
+  return { start: monday, end: endOfDayInTimeZone(timeZone, sunday) };
 }

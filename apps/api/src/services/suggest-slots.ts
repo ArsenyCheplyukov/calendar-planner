@@ -1,16 +1,18 @@
 import type { ParsedPlan, Suggestion, Preferences } from "@calendar-planner/shared";
 import { getFreeBusy, type GoogleCalendarClient } from "../infrastructure/google/freebusy.js";
-import { currentWeek, weekOf, toIsoRange } from "../domain/week.js";
+import { currentWeek, parseWeekStart, weekOf, toIsoRange } from "../domain/week.js";
 import { findSlots } from "../domain/slot-finder.js";
 import { scoreSlots, mergeWithHint } from "../domain/scorer.js";
+import { getLocalTimeZone } from "../domain/time-zone.js";
 import type { PreferencesStore } from "../infrastructure/preferences/store.js";
 
 export type CalendarClientFactory = (accessToken: string) => GoogleCalendarClient;
-export type PlanParser = (text: string) => Promise<ParsedPlan>;
+export type PlanParser = (text: string, timeZone: string) => Promise<ParsedPlan>;
 
 export interface SuggestSlotsInput {
   text: string;
-  startDate?: string; // YYYY-MM-DD
+  startDate?: string; // YYYY-MM-DD in the target time zone
+  timeZone?: string; // IANA time zone
 }
 
 export interface SuggestSlotsDeps {
@@ -26,18 +28,26 @@ export async function suggestSlots(
 ): Promise<{ parsed: ParsedPlan; suggestions: Suggestion[]; preferences: Preferences }> {
   const { parsePlan, calendarClientFactory, getAccessToken, preferencesStore } = deps;
 
+  const timeZone = input.timeZone ?? getLocalTimeZone();
+
   let preferences = await preferencesStore.getPreferences();
-  const parsed = await parsePlan(input.text);
+  // The Owner's explicit preference overrides the device time zone.
+  const effectiveTimeZone = preferences.timeZone || timeZone;
+
+  const parsed = await parsePlan(input.text, effectiveTimeZone);
   preferences = mergeWithHint(preferences, parsed.hint);
 
   const startDate = input.startDate;
-  const week = startDate ? weekOf(new Date(startDate)) : currentWeek();
+  const parsedStartDate = startDate ? parseWeekStart(startDate, effectiveTimeZone) : null;
+  const week = parsedStartDate
+    ? weekOf(parsedStartDate, effectiveTimeZone)
+    : currentWeek(new Date(), effectiveTimeZone);
 
   const accessToken = await getAccessToken();
   let busy: Awaited<ReturnType<typeof getFreeBusy>> = {};
   if (accessToken) {
     const client = calendarClientFactory(accessToken);
-    busy = await getFreeBusy(week, accessToken, client);
+    busy = await getFreeBusy(week, accessToken, client, effectiveTimeZone);
   }
 
   const window = {
@@ -45,9 +55,9 @@ export async function suggestSlots(
     end: preferences.workingHoursEnd,
   };
   const weekStart = week.start;
-  const slots = findSlots(busy, window, parsed.durationMinutes, preferences.bufferMinutes, weekStart);
+  const slots = findSlots(busy, window, parsed.durationMinutes, preferences.bufferMinutes, weekStart, effectiveTimeZone);
 
-  const scored = scoreSlots(slots, parsed, preferences, parsed.hint);
+  const scored = scoreSlots(slots, parsed, preferences, parsed.hint, effectiveTimeZone);
 
   return { parsed, suggestions: scored, preferences };
 }

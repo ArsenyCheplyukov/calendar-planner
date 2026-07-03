@@ -49,6 +49,7 @@ export interface Preferences {
     start: string; // "HH:MM"
     end: string;   // "HH:MM"
   }>;
+  timeZone: string; // IANA time zone, e.g. "Europe/Moscow"
 }
 
 export const DEFAULT_PREFERENCES: Preferences = {
@@ -60,4 +61,5 @@ export const DEFAULT_PREFERENCES: Preferences = {
   typeBiasPersonal: "any",
   typeBiasErrand: "16:00-19:00",
   blackouts: [],
+  timeZone: "UTC",
 };

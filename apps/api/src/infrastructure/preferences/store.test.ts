@@ -13,6 +13,7 @@ interface MockRow {
   typeBiasPersonal: string;
   typeBiasErrand: string;
   blackoutsJson: string;
+  timeZone: string;
   updatedAt: Date;
 }
 
@@ -52,6 +53,7 @@ describe("PreferencesStore", () => {
       typeBiasPersonal: "any",
       typeBiasErrand: "17:00-19:00",
       blackoutsJson: "[]",
+      timeZone: "Europe/Moscow",
       updatedAt: new Date(),
     });
     const store = new PreferencesStore(fake as never);

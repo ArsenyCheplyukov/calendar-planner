@@ -1,20 +1,13 @@
 import type { ParsedPlan, EventType, TimeOfDay } from "@calendar-planner/shared";
+import { getLocalTimeZone, ymdInTimeZone } from "../../domain/time-zone.js";
 
 const GEMINI_URL =
   "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
 
-function formatLocalDate(d: Date): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
-}
-
-function buildSystemInstruction(): string {
-  const today = formatLocalDate(new Date());
+function buildSystemInstruction(today: string, timeZone: string): string {
   return `Ты — ассистент по планированию. Тебе дают свободный текст на русском, описывающий что пользователь хочет запланировать. Твоя задача — извлечь из текста структурированные поля.
 
-Сегодняшняя дата: ${today}. Используй её для относительных ссылок: "сегодня" → ${today}, "завтра" → следующий день после ${today}, дни недели — ближайший будущий такой день.
+Сегодняшняя дата: ${today}. Часовой пояс по умолчанию: ${timeZone}. Используй их для относительных ссылок: "сегодня" → ${today}, "завтра" → следующий день после ${today}, дни недели — ближайший будущий такой день.
 
 Верни JSON строго по схеме. Никаких пояснений, никакого текста вне JSON.
 
@@ -26,17 +19,17 @@ function buildSystemInstruction(): string {
   - meeting: встреча, созвон, синк, 1-1
   - personal: личное (спорт, обед, отдых)
   - errand: поручение, бытовое дело, покупка
-- deadline: ISO 8601 datetime в UTC, если в тексте указано «к <времени>», «до <даты>», «к <событию>». Иначе null.
+- deadline: ISO 8601 datetime с timezone offset (например "2026-07-10T15:00:00+03:00"). Если пользователь не указал часовой пояс явно, используй ${timeZone}. Если указал другой пояс/город/страну — используй его. Иначе null.
 - hint: null или объект { window: { ... } } если в тексте указано временное окно:
   - dayOfWeek: одно из "mon"|"tue"|"wed"|"thu"|"fri"|"sat"|"sun", если упомянут день недели
   - timeOfDay: одно из "morning"|"midday"|"evening", если упомянуто время суток
-  - date: ISO дата (YYYY-MM-DD), если упомянута конкретная дата
+  - date: ISO дата (YYYY-MM-DD) в ${timeZone}, если упомянута конкретная дата
 
 Примеры:
 - "подготовить презентацию к встрече в пятницу, часа 2"
-  → {"title":"Подготовить презентацию","durationMinutes":120,"type":"focus","deadline":"<ближайшая пятница>","hint":{"window":{"dayOfWeek":"fri"}}}
+  → {"title":"Подготовить презентацию","durationMinutes":120,"type":"focus","deadline":null,"hint":{"window":{"dayOfWeek":"fri"}}}
 - "созвон с клиентом завтра в 15:00, минут 30"
-  → {"title":"Созвон с клиентом","durationMinutes":30,"type":"meeting","deadline":"<завтра 15:00 UTC>","hint":null}
+  → {"title":"Созвон с клиентом","durationMinutes":30,"type":"meeting","deadline":"<завтра 15:00 в ${timeZone} с offset>","hint":null}
 - "купить продукты"
   → {"title":"Купить продукты","durationMinutes":60,"type":"errand","deadline":null,"hint":null}`;
 }
@@ -81,6 +74,8 @@ const RESPONSE_SCHEMA = {
 export interface ParsePlanOptions {
   apiKey: string;
   fetchImpl?: typeof fetch;
+  referenceDate?: Date;
+  timeZone?: string;
 }
 
 export async function parsePlan(
@@ -89,9 +84,12 @@ export async function parsePlan(
 ): Promise<ParsedPlan> {
   const fetchImpl = options.fetchImpl ?? fetch;
   const url = `${GEMINI_URL}?key=${encodeURIComponent(options.apiKey)}`;
+  const timeZone = options.timeZone ?? getLocalTimeZone();
+  const referenceDate = options.referenceDate ?? new Date();
+  const today = ymdInTimeZone(timeZone, referenceDate);
 
   const body = {
-    systemInstruction: { parts: [{ text: buildSystemInstruction() }] },
+    systemInstruction: { parts: [{ text: buildSystemInstruction(today, timeZone) }] },
     contents: [{ role: "user", parts: [{ text }] }],
     generationConfig: {
       temperature: 0,

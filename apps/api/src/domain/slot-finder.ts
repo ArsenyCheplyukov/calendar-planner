@@ -1,5 +1,12 @@
 import type { Slot } from "@calendar-planner/shared";
 import type { BusyMap } from "../infrastructure/google/freebusy.js";
+import {
+  getLocalTimeZone,
+  ymdInTimeZone,
+  setTimeOnDateInTimeZone,
+  getParts,
+  addDaysInTimeZone,
+} from "./time-zone.js";
 
 export interface WorkingWindow {
   start: string; // "HH:MM"
@@ -11,19 +18,6 @@ const INCREMENT_MIN = 15;
 function parseHHMM(s: string): { h: number; m: number } {
   const [h, m] = s.split(":").map(Number);
   return { h: h ?? 0, m: m ?? 0 };
-}
-
-function ymdLocal(d: Date): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
-}
-
-function setTimeOnDate(d: Date, h: number, m: number): Date {
-  const out = new Date(d);
-  out.setHours(h, m, 0, 0);
-  return out;
 }
 
 function overlapsWithBuffer(
@@ -48,6 +42,8 @@ function overlapsWithBuffer(
  * viable time slot of `durationMinutes` length inside `window`, honoring
  * `bufferMin` between the slot and any busy block. Returns at most one slot
  * per day (or none if no viable slot exists).
+ *
+ * All local-time computations use `timeZone`.
  */
 export function findSlots(
   busy: BusyMap,
@@ -55,6 +51,7 @@ export function findSlots(
   durationMinutes: number,
   bufferMinutes: number,
   weekStart: Date,
+  timeZone: string = getLocalTimeZone(),
 ): Slot[] {
   if (durationMinutes <= 0) return [];
 
@@ -63,14 +60,13 @@ export function findSlots(
   const slots: Slot[] = [];
 
   for (let d = 0; d < 7; d++) {
-    const day = new Date(weekStart);
-    day.setDate(weekStart.getDate() + d);
+    const day = addDaysInTimeZone(timeZone, weekStart, d);
 
-    const dayKey = ymdLocal(day);
+    const dayKey = ymdInTimeZone(timeZone, day);
     const dayBusy = busy[dayKey] ?? [];
 
-    const dayStart = setTimeOnDate(day, startH, startM);
-    const dayEnd = setTimeOnDate(day, endH, endM);
+    const dayStart = setTimeOnDateInTimeZone(timeZone, day, startH, startM);
+    const dayEnd = setTimeOnDateInTimeZone(timeZone, day, endH, endM);
     const totalMs = dayEnd.getTime() - dayStart.getTime();
     const durationMs = durationMinutes * 60 * 1000;
 

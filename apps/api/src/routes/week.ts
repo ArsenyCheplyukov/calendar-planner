@@ -1,5 +1,6 @@
-import type { FastifyInstance } from "fastify";
+import type { FastifyInstance, FastifyRequest } from "fastify";
 import { currentWeek, parseWeekStart, weekOf } from "../domain/week.js";
+import { getLocalTimeZone } from "../domain/time-zone.js";
 import {
   getFreeBusy,
   type GoogleCalendarClient,
@@ -11,11 +12,23 @@ export interface WeekRouteOptions {
   calendarClientFactory: CalendarClientFactory;
 }
 
+function pickTimeZone(req: FastifyRequest): string {
+  const fromQuery = (req.query as Record<string, unknown>)["timeZone"];
+  if (typeof fromQuery === "string" && fromQuery.length > 0) {
+    return fromQuery;
+  }
+  const fromHeader = req.headers["x-device-timezone"];
+  if (typeof fromHeader === "string" && fromHeader.length > 0) {
+    return fromHeader;
+  }
+  return getLocalTimeZone();
+}
+
 export async function weekRoute(
   app: FastifyInstance,
   opts: WeekRouteOptions,
 ): Promise<void> {
-  app.get<{ Querystring: { start?: string } }>("/api/week", async (req, reply) => {
+  app.get<{ Querystring: { start?: string; timeZone?: string } }>("/api/week", async (req, reply) => {
     if (!req.accessToken) {
       return reply.status(401).send({
         error: "unauthenticated",
@@ -23,23 +36,25 @@ export async function weekRoute(
       });
     }
 
+    const timeZone = pickTimeZone(req);
+
     const startParam = req.query.start;
     let week;
     if (startParam) {
-      const parsed = parseWeekStart(startParam);
+      const parsed = parseWeekStart(startParam, timeZone);
       if (!parsed) {
         return reply.status(400).send({
           error: "bad_request",
           message: "`start` must be YYYY-MM-DD",
         });
       }
-      week = weekOf(parsed);
+      week = weekOf(parsed, timeZone);
     } else {
-      week = currentWeek();
+      week = currentWeek(new Date(), timeZone);
     }
 
     const client = opts.calendarClientFactory(req.accessToken);
-    const busy = await getFreeBusy(week, req.accessToken, client);
+    const busy = await getFreeBusy(week, req.accessToken, client, timeZone);
 
     return {
       week: {
