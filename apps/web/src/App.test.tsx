@@ -114,3 +114,51 @@ describe("App with ConfirmModal flow", () => {
     expect(await screen.findByTestId("create-toast")).toHaveTextContent(/создано|успешно/i);
   });
 });
+
+describe("App week navigation", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  function buildWeekNavMock(initialWeekStart = "2026-07-06T00:00:00.000Z") {
+    return vi.fn().mockImplementation((url: string) => {
+      if (url.includes("/api/week")) {
+        const startParam = new URL(url, "http://localhost").searchParams.get("start");
+        const start = startParam ? `${startParam}T00:00:00.000Z` : initialWeekStart;
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              week: { start, end: "2026-07-12T23:59:59.999Z" },
+              busy: {},
+            }),
+            { status: 200, headers: { "Content-Type": "application/json" } },
+          ),
+        );
+      }
+      return Promise.reject(new Error("unexpected: " + url));
+    });
+  }
+
+  it("navigates to next and previous weeks based on the displayed week", async () => {
+    const user = userEvent.setup();
+    const fetchMock = buildWeekNavMock();
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<App />);
+    await waitFor(() => screen.getByTestId("week-view"));
+
+    await user.click(screen.getByLabelText(/следующая неделя/i));
+    await waitFor(() => {
+      expect(fetchMock.mock.calls.some((c) => String(c[0]).includes("start=2026-07-13"))).toBe(true);
+    });
+
+    await user.click(screen.getByLabelText(/предыдущая неделя/i));
+    await waitFor(() => {
+      expect(fetchMock.mock.calls.some((c) => String(c[0]).includes("start=2026-07-06"))).toBe(true);
+    });
+  });
+});

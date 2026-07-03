@@ -66,6 +66,18 @@ function addDaysYmd(ymd: string, days: number): string {
   return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
 }
 
+function isoToYmdInTimeZone(iso: string, timeZone: string): string {
+  const d = new Date(iso);
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(d);
+  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? "";
+  return `${get("year")}-${get("month")}-${get("day")}`;
+}
+
 function buildWeekUrl(start: string | null): string {
   const tz = encodeURIComponent(getDeviceTimeZone());
   if (start) {
@@ -122,14 +134,24 @@ export function App() {
 
   const handlePrev = () => {
     setStartParam((current) => {
-      const base = current ?? todayYmd();
+      const tz = getDeviceTimeZone();
+      const base =
+        current ??
+        (weekState.kind === "ready"
+          ? isoToYmdInTimeZone(weekState.data.week.start, tz)
+          : todayYmd());
       return addDaysYmd(base, -7);
     });
   };
 
   const handleNext = () => {
     setStartParam((current) => {
-      const base = current ?? todayYmd();
+      const tz = getDeviceTimeZone();
+      const base =
+        current ??
+        (weekState.kind === "ready"
+          ? isoToYmdInTimeZone(weekState.data.week.start, tz)
+          : todayYmd());
       return addDaysYmd(base, 7);
     });
   };
