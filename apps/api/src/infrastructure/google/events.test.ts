@@ -38,11 +38,12 @@ describe("createEvent", () => {
       start: { dateTime: "2026-07-08T09:00:00Z" },
       end: { dateTime: "2026-07-08T10:00:00Z" },
       transparency: "opaque",
+      reminders: { useDefault: true },
     });
     expect(result.id).toBe("evt-1");
   });
 
-  it("does not pass reminders (so Google defaults apply)", async () => {
+  it("passes useDefault reminders so Google Calendar defaults apply", async () => {
     const insert = vi.fn().mockResolvedValue({ data: { id: "evt-1" } });
     await createEvent(
       {
@@ -55,7 +56,7 @@ describe("createEvent", () => {
       makeClient(insert),
     );
     const [params] = insert.mock.calls[0]!;
-    expect(params.requestBody.reminders).toBeUndefined();
+    expect(params.requestBody.reminders).toEqual({ useDefault: true });
   });
 
   it("throws a clear error when the Google API call fails", async () => {

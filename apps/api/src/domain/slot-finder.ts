@@ -6,7 +6,7 @@ import {
   setTimeOnDateInTimeZone,
   getParts,
   addDaysInTimeZone,
-} from "./time-zone.js";
+} from "@calendar-planner/shared";
 
 export interface WorkingWindow {
   start: string; // "HH:MM"

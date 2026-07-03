@@ -3,7 +3,7 @@ import { render, screen, waitFor, fireEvent, within } from "@testing-library/rea
 import userEvent from "@testing-library/user-event";
 import { App } from "./App.js";
 
-describe("App with ConfirmModal flow", () => {
+describe("App event creation flow", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
   });
@@ -64,7 +64,7 @@ describe("App with ConfirmModal flow", () => {
     });
   }
 
-  it("opens the ConfirmModal when Place here is clicked, and creates the event on confirm", async () => {
+  it("opens the event form when Add event is clicked on a suggestion, and creates the event on submit", async () => {
     const user = userEvent.setup();
     const fetchMock = buildMock();
     vi.stubGlobal("fetch", fetchMock);
@@ -72,29 +72,34 @@ describe("App with ConfirmModal flow", () => {
     render(<App />);
     await waitFor(() => screen.getByTestId("week-view"));
 
-    // Submit a plan
     const textarea = screen.getByRole("textbox", { name: /план/i });
     await user.type(textarea, "подготовить презентацию");
     await user.click(screen.getByRole("button", { name: /suggest/i }));
 
-    // Wait for suggestions
     await waitFor(() => screen.getByTestId("suggestions-list"));
+    await user.click(screen.getAllByRole("button", { name: /add event/i })[0]!);
 
-    // Click Place here on the first suggestion
-    await user.click(screen.getAllByRole("button", { name: /place here/i })[0]!);
-
-    // Modal opens with title and time
     const dialog = await screen.findByRole("dialog");
-    expect(within(dialog).getByTestId("confirm-title-value")).toHaveTextContent("Подготовить презентацию");
+    expect(within(dialog).getByLabelText(/title/i)).toHaveValue("Подготовить презентацию");
 
-    // Confirm
-    await user.click(within(dialog).getByRole("button", { name: /создать/i }));
+    await user.click(within(dialog).getByRole("button", { name: /create event/i }));
 
-    // Wait for /api/events call
     await waitFor(() => {
       const calls = fetchMock.mock.calls.map((c) => String(c[0]));
       expect(calls.some((u) => u.includes("/api/events"))).toBe(true);
     });
+
+    const eventCall = fetchMock.mock.calls.find(
+      (c) => String(c[0]).includes("/api/events") && (c[1] as RequestInit | undefined)?.method === "POST",
+    );
+    const body = JSON.parse((eventCall?.[1] as RequestInit).body as string) as {
+      title?: string;
+      parsedPlan?: { title: string };
+      originalPlanText?: string;
+    };
+    expect(body.title).toBe("Подготовить презентацию");
+    expect(body.parsedPlan?.title).toBe("Подготовить презентацию");
+    expect(body.originalPlanText).toBe("подготовить презентацию");
   });
 
   it("shows a success toast after the event is created", async () => {
@@ -107,11 +112,47 @@ describe("App with ConfirmModal flow", () => {
     await user.type(textarea, "x");
     await user.click(screen.getByRole("button", { name: /suggest/i }));
     await waitFor(() => screen.getByTestId("suggestions-list"));
-    await user.click(screen.getAllByRole("button", { name: /place here/i })[0]!);
+    await user.click(screen.getAllByRole("button", { name: /add event/i })[0]!);
+
     const dialog = await screen.findByRole("dialog");
-    await user.click(within(dialog).getByRole("button", { name: /создать/i }));
+    await user.click(within(dialog).getByRole("button", { name: /create event/i }));
 
     expect(await screen.findByTestId("create-toast")).toHaveTextContent(/создано|успешно/i);
+  });
+
+  it("creates an event manually through the event form", async () => {
+    const user = userEvent.setup();
+    const fetchMock = buildMock();
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<App />);
+    await waitFor(() => screen.getByTestId("week-view"));
+
+    await user.click(screen.getByTestId("create-event-button"));
+
+    const dialog = await screen.findByRole("dialog");
+    const titleInput = within(dialog).getByLabelText(/title/i);
+    await user.clear(titleInput);
+    await user.type(titleInput, "Ручное событие");
+
+    await user.click(within(dialog).getByRole("button", { name: /create event/i }));
+
+    await waitFor(() => {
+      const calls = fetchMock.mock.calls.map((c) => String(c[0]));
+      expect(calls.some((u) => u.includes("/api/events"))).toBe(true);
+    });
+
+    const eventCall = fetchMock.mock.calls.find(
+      (c) => String(c[0]).includes("/api/events") && (c[1] as RequestInit | undefined)?.method === "POST",
+    );
+    const body = JSON.parse((eventCall?.[1] as RequestInit).body as string) as {
+      title: string;
+      parsedPlan?: unknown;
+      originalPlanText?: unknown;
+    };
+    expect(body.title).toBe("Ручное событие");
+    expect(body.parsedPlan).toBeUndefined();
+    expect(body.originalPlanText).toBeUndefined();
   });
 });
 

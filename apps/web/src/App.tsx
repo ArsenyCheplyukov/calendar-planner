@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
+import { getLocalTimeZone, ymdInTimeZone } from "@calendar-planner/shared";
+import { Button } from "./components/Button/index.js";
 import { PlanInput, type PlanInputResult } from "./components/PlanInput/index.js";
 import { Suggestions } from "./components/Suggestions/index.js";
 import {
@@ -7,7 +9,7 @@ import {
   type WeekViewWeek,
   type WeekViewSuggestion,
 } from "./components/WeekView/index.js";
-import { ConfirmModal } from "./components/ConfirmModal/index.js";
+import { EventForm, type EventFormData } from "./components/EventForm/index.js";
 import { EventsPopover, type EventItem } from "./components/EventsPopover/index.js";
 import type { Suggestion, ParsedPlan } from "@calendar-planner/shared";
 import styles from "./App.module.css";
@@ -37,23 +39,19 @@ type EventsPopoverState =
   | { kind: "ready"; windowStart: string; windowEnd: string; events: EventItem[] }
   | { kind: "error"; windowStart: string; windowEnd: string; message: string };
 
+type EventFormState =
+  | { kind: "closed" }
+  | { kind: "manual" }
+  | { kind: "suggestion"; suggestion: Suggestion; parsedPlan: ParsedPlan; originalPlanText: string };
+
 type Toast = { id: number; message: string; tone: "success" | "error" };
 
-function getDeviceTimeZone(): string {
-  return Intl.DateTimeFormat().resolvedOptions().timeZone;
+function todayYmd(): string {
+  return ymdInTimeZone(getLocalTimeZone(), new Date());
 }
 
-function todayYmd(): string {
-  const tz = getDeviceTimeZone();
-  const d = new Date();
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: tz,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(d);
-  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? "";
-  return `${get("year")}-${get("month")}-${get("day")}`;
+function isoToYmdInTimeZone(iso: string, timeZone: string): string {
+  return ymdInTimeZone(timeZone, new Date(iso));
 }
 
 function addDaysYmd(ymd: string, days: number): string {
@@ -66,20 +64,8 @@ function addDaysYmd(ymd: string, days: number): string {
   return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
 }
 
-function isoToYmdInTimeZone(iso: string, timeZone: string): string {
-  const d = new Date(iso);
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(d);
-  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? "";
-  return `${get("year")}-${get("month")}-${get("day")}`;
-}
-
 function buildWeekUrl(start: string | null): string {
-  const tz = encodeURIComponent(getDeviceTimeZone());
+  const tz = encodeURIComponent(getLocalTimeZone());
   if (start) {
     return `/api/week?start=${start}&timeZone=${tz}`;
   }
@@ -91,7 +77,7 @@ export function App() {
   const [startParam, setStartParam] = useState<string | null>(null);
   const [planText, setPlanText] = useState("");
   const [planState, setPlanState] = useState<PlanState>({ kind: "idle" });
-  const [pendingSuggestion, setPendingSuggestion] = useState<Suggestion | null>(null);
+  const [eventForm, setEventForm] = useState<EventFormState>({ kind: "closed" });
   const [createState, setCreateState] = useState<CreateState>({ kind: "idle" });
   const [eventsState, setEventsState] = useState<EventsPopoverState | null>(null);
   const [toasts, setToasts] = useState<Toast[]>([]);
@@ -134,7 +120,7 @@ export function App() {
 
   const handlePrev = () => {
     setStartParam((current) => {
-      const tz = getDeviceTimeZone();
+      const tz = getLocalTimeZone();
       const base =
         current ??
         (weekState.kind === "ready"
@@ -146,7 +132,7 @@ export function App() {
 
   const handleNext = () => {
     setStartParam((current) => {
-      const tz = getDeviceTimeZone();
+      const tz = getLocalTimeZone();
       const base =
         current ??
         (weekState.kind === "ready"
@@ -166,7 +152,7 @@ export function App() {
         const res = await fetch("/api/plan", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text, timeZone: getDeviceTimeZone() }),
+          body: JSON.stringify({ text, timeZone: getLocalTimeZone() }),
         });
         if (res.status === 400) {
           const body = (await res.json().catch(() => ({}))) as { message?: string };
@@ -194,44 +180,63 @@ export function App() {
     [],
   );
 
-  const handleApprove = useCallback((suggestion: Suggestion) => {
+  const openManualForm = useCallback(() => {
     setCreateState({ kind: "idle" });
-    setPendingSuggestion(suggestion);
+    setEventForm({ kind: "manual" });
   }, []);
 
-  const handleCancel = useCallback(() => {
+  const openSuggestionForm = useCallback((suggestion: Suggestion) => {
+    if (planState.kind !== "ready") return;
+    setCreateState({ kind: "idle" });
+    setEventForm({
+      kind: "suggestion",
+      suggestion,
+      parsedPlan: planState.parsed,
+      originalPlanText: planState.originalText,
+    });
+  }, [planState]);
+
+  const handleFormCancel = useCallback(() => {
     if (createState.kind === "submitting") return;
-    setPendingSuggestion(null);
+    setEventForm({ kind: "closed" });
     setCreateState({ kind: "idle" });
   }, [createState]);
 
-  const handleConfirm = useCallback(async () => {
-    if (planState.kind !== "ready" || !pendingSuggestion) return;
-    setCreateState({ kind: "submitting" });
-    try {
-      const res = await fetch("/api/events", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          slot: { start: pendingSuggestion.start, end: pendingSuggestion.end },
-          parsedPlan: planState.parsed,
-          originalPlanText: planState.originalText,
-        }),
-      });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(body.message ?? `HTTP ${res.status}`);
+  const handleFormSubmit = useCallback(
+    async (data: EventFormData) => {
+      setCreateState({ kind: "submitting" });
+      const body: Record<string, unknown> = {
+        slot: { start: data.start, end: data.end },
+        title: data.title,
+        description: data.description,
+        location: data.location,
+      };
+      if (eventForm.kind === "suggestion") {
+        body.parsedPlan = eventForm.parsedPlan;
+        body.originalPlanText = eventForm.originalPlanText;
       }
-      pushToast("Событие создано", "success");
-      setPendingSuggestion(null);
-      setCreateState({ kind: "idle" });
-      void fetchWeek(startParam);
-    } catch (e) {
-      const message = e instanceof Error ? e.message : String(e);
-      setCreateState({ kind: "error", message });
-      pushToast(`Не удалось: ${message}`, "error");
-    }
-  }, [planState, pendingSuggestion, pushToast, fetchWeek, startParam]);
+      try {
+        const res = await fetch("/api/events", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        if (!res.ok) {
+          const resBody = (await res.json().catch(() => ({}))) as { message?: string };
+          throw new Error(resBody.message ?? `HTTP ${res.status}`);
+        }
+        pushToast("Событие создано", "success");
+        setEventForm({ kind: "closed" });
+        setCreateState({ kind: "idle" });
+        void fetchWeek(startParam);
+      } catch (e) {
+        const message = e instanceof Error ? e.message : String(e);
+        setCreateState({ kind: "error", message });
+        pushToast(`Не удалось: ${message}`, "error");
+      }
+    },
+    [eventForm, pushToast, fetchWeek, startParam],
+  );
 
   const handleBlockClick = useCallback(async (busySlot: { start: string; end: string }) => {
     setEventsState({ kind: "loading", windowStart: busySlot.start, windowEnd: busySlot.end });
@@ -278,6 +283,17 @@ export function App() {
     });
   }, [planState, weekState]);
 
+  const formInitialValues =
+    eventForm.kind === "suggestion"
+      ? {
+          initialTitle: eventForm.parsedPlan.title,
+          initialStart: eventForm.suggestion.start,
+          initialEnd: eventForm.suggestion.end,
+          initialDescription: eventForm.originalPlanText,
+          initialLocation: "",
+        }
+      : {};
+
   return (
     <main className={styles["app"]} data-testid="app">
       <div className={styles["app-inner"]}>
@@ -302,8 +318,8 @@ export function App() {
             <h2 className={styles["section-title"]}>Suggestions</h2>
             <Suggestions
               suggestions={planState.suggestions}
-              onApprove={handleApprove}
-              onSelect={handleApprove}
+              onApprove={openSuggestionForm}
+              onSelect={openSuggestionForm}
             />
           </div>
         )}
@@ -328,34 +344,40 @@ export function App() {
           )}
 
           {weekState.kind === "ready" && (
-            <WeekView
-              week={weekState.data.week}
-              busy={weekState.data.busy}
-              suggestions={suggestionsForWeek()}
-              onPrev={handlePrev}
-              onNext={handleNext}
-              onToday={handleToday}
-              onBlockClick={handleBlockClick}
-              onSuggestionClick={(s) =>
-                handleApprove({
-                  start: s.start,
-                  end: s.end,
-                  score: s.score ?? 0,
-                  reason: s.reason ?? "",
-                })
-              }
-            />
+            <>
+              <div style={{ marginBottom: "var(--space-3)", display: "flex", justifyContent: "flex-end" }}>
+                <Button variant="primary" size="sm" onClick={openManualForm} data-testid="create-event-button">
+                  Create event
+                </Button>
+              </div>
+              <WeekView
+                week={weekState.data.week}
+                busy={weekState.data.busy}
+                suggestions={suggestionsForWeek()}
+                onPrev={handlePrev}
+                onNext={handleNext}
+                onToday={handleToday}
+                onBlockClick={handleBlockClick}
+                onSuggestionClick={(s) =>
+                  openSuggestionForm({
+                    start: s.start,
+                    end: s.end,
+                    score: s.score ?? 0,
+                    reason: s.reason ?? "",
+                  })
+                }
+              />
+            </>
           )}
         </div>
       </div>
 
-      {pendingSuggestion && planState.kind === "ready" && (
-        <ConfirmModal
-          suggestion={pendingSuggestion}
-          parsedPlan={planState.parsed}
-          originalPlanText={planState.originalText}
-          onConfirm={handleConfirm}
-          onCancel={handleCancel}
+      {eventForm.kind !== "closed" && (
+        <EventForm
+          {...formInitialValues}
+          submitLabel="Create event"
+          onSubmit={handleFormSubmit}
+          onCancel={handleFormCancel}
           submitting={createState.kind === "submitting"}
           error={createState.kind === "error" ? createState.message : null}
         />

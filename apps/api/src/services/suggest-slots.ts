@@ -3,7 +3,7 @@ import { getFreeBusy, type GoogleCalendarClient } from "../infrastructure/google
 import { currentWeek, parseWeekStart, weekOf, toIsoRange } from "../domain/week.js";
 import { findSlots } from "../domain/slot-finder.js";
 import { scoreSlots, mergeWithHint } from "../domain/scorer.js";
-import { getLocalTimeZone } from "../domain/time-zone.js";
+import { getLocalTimeZone } from "@calendar-planner/shared";
 import type { PreferencesStore } from "../infrastructure/preferences/store.js";
 
 export type CalendarClientFactory = (accessToken: string) => GoogleCalendarClient;

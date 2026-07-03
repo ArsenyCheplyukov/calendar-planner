@@ -1,7 +1,7 @@
 import { calendar_v3 } from "googleapis";
 import { createRequire } from "node:module";
 import { toIsoRange, type Week } from "../../domain/week.js";
-import { getLocalTimeZone, ymdInTimeZone } from "../../domain/time-zone.js";
+import { getLocalTimeZone, ymdInTimeZone } from "@calendar-planner/shared";
 
 export type BusyMap = Record<string, Array<{ start: string; end: string }>>;
 

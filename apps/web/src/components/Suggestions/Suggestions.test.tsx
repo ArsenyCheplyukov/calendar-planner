@@ -31,21 +31,21 @@ describe("Suggestions", () => {
     expect(cards).toHaveLength(3);
   });
 
-  it("shows the time, the reason, and a Place here button on each card", () => {
+  it("shows the time, the reason, and an Add event button on each card", () => {
     render(<Suggestions suggestions={sample} onApprove={() => {}} onSelect={() => {}} />);
     const cards = screen.getAllByTestId("suggestion-card");
 
     expect(within(cards[0]!).getByTestId("suggestion-time")).toHaveTextContent(/09:00/);
     expect(within(cards[0]!).getByText(/фокус/)).toBeInTheDocument();
-    expect(within(cards[0]!).getByRole("button", { name: /place here/i })).toBeInTheDocument();
+    expect(within(cards[0]!).getByRole("button", { name: /add event/i })).toBeInTheDocument();
   });
 
-  it("calls onApprove with the suggestion when Place here is clicked", async () => {
+  it("calls onApprove with the suggestion when Add event is clicked", async () => {
     const user = userEvent.setup();
     const onApprove = vi.fn();
     render(<Suggestions suggestions={sample} onApprove={onApprove} onSelect={() => {}} />);
 
-    await user.click(screen.getAllByRole("button", { name: /place here/i })[0]!);
+    await user.click(screen.getAllByRole("button", { name: /add event/i })[0]!);
     expect(onApprove).toHaveBeenCalledWith(sample[0]);
   });
 

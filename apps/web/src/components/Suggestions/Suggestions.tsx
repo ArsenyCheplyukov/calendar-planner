@@ -52,7 +52,7 @@ export function Suggestions({ suggestions, onApprove, onSelect }: SuggestionsPro
               onApprove(s);
             }}
           >
-            Place here
+            Add event
           </Button>
         </div>
       ))}

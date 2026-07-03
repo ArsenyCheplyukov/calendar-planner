@@ -5,7 +5,7 @@ import {
   getWeekday,
   timeOfDayMinutesInTimeZone,
   ymdInTimeZone,
-} from "./time-zone.js";
+} from "@calendar-planner/shared";
 
 export const DEFAULT_PREFERENCES: Preferences = {
   workingHoursStart: "09:00",

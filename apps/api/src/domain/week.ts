@@ -8,7 +8,7 @@ import {
   formatRfc3339,
   parseYmdInTimeZone,
   dateFromParts,
-} from "./time-zone.js";
+} from "@calendar-planner/shared";
 
 export interface Week {
   start: Date; // Monday 00:00:00.000 in the target time zone

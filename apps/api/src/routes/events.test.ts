@@ -110,6 +110,43 @@ describe("POST /api/events", () => {
     await app.close();
   });
 
+  it("creates an event from a manual title and description", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({ access_token: "ya29.test", expires_in: 3600 }),
+          { status: 200 },
+        ),
+      ),
+    );
+
+    const insert = vi.fn().mockResolvedValue({
+      data: { id: "evt-manual", summary: "", start: {}, end: {} },
+    });
+    const app = await buildApp({
+      eventsClientFactory: () => ({ events: { insert } }),
+    });
+
+    await app.inject({
+      method: "POST",
+      url: "/api/events",
+      payload: {
+        slot: { start: "2026-07-08T09:00:00Z", end: "2026-07-08T10:00:00Z" },
+        title: "Ручное событие",
+        description: "Описание от пользователя",
+        location: "Офис",
+      },
+    });
+
+    const params = insert.mock.calls[0]![0];
+    expect(params.requestBody.summary).toBe("Ручное событие");
+    expect(params.requestBody.description).toContain("Описание от пользователя");
+    expect(params.requestBody.description).toContain("Created via calendar-planner");
+    expect(params.requestBody.location).toBe("Офис");
+    await app.close();
+  });
+
   it("returns 400 when slot is missing start or end", async () => {
     vi.stubGlobal(
       "fetch",

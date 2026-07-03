@@ -11,7 +11,8 @@ export interface GoogleCalendarClient {
 
 export interface CreateEventInput {
   summary: string;
-  description: string;
+  description?: string;
+  location?: string;
   start: string; // ISO datetime
   end: string;   // ISO datetime
 }
@@ -37,10 +38,12 @@ export async function createEvent(
     sendUpdates: "none",
     requestBody: {
       summary: input.summary,
-      description: input.description,
+      ...(input.description && { description: input.description }),
+      ...(input.location && { location: input.location }),
       start: { dateTime: input.start },
       end: { dateTime: input.end },
       transparency: "opaque",
+      reminders: { useDefault: true },
     },
   });
 

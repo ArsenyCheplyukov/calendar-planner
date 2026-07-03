@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import { currentWeek, parseWeekStart, weekOf } from "../domain/week.js";
-import { getLocalTimeZone } from "../domain/time-zone.js";
+import { getLocalTimeZone } from "@calendar-planner/shared";
 import {
   getFreeBusy,
   type GoogleCalendarClient,

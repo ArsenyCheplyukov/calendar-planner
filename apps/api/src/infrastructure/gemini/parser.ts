@@ -1,5 +1,5 @@
 import type { ParsedPlan, EventType, TimeOfDay } from "@calendar-planner/shared";
-import { getLocalTimeZone, ymdInTimeZone } from "../../domain/time-zone.js";
+import { getLocalTimeZone, ymdInTimeZone } from "@calendar-planner/shared";
 
 const GEMINI_URL =
   "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";

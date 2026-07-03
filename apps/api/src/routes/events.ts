@@ -23,6 +23,9 @@ interface CreateEventBody {
   slot?: Partial<Slot>;
   parsedPlan?: ParsedPlan;
   originalPlanText?: string;
+  title?: string;
+  description?: string;
+  location?: string;
 }
 
 export async function eventsRoute(
@@ -30,7 +33,7 @@ export async function eventsRoute(
   opts: EventsRouteOptions,
 ): Promise<void> {
   app.post<{ Body: CreateEventBody }>("/api/events", async (req, reply) => {
-    const { slot, parsedPlan, originalPlanText } = req.body ?? {};
+    const { slot, parsedPlan, originalPlanText, title, description, location } = req.body ?? {};
 
     if (!slot?.start || !slot?.end) {
       return reply.status(400).send({
@@ -38,16 +41,12 @@ export async function eventsRoute(
         message: "`slot` must include start and end",
       });
     }
-    if (!parsedPlan?.title) {
+
+    const summary = parsedPlan?.title ?? title;
+    if (!summary) {
       return reply.status(400).send({
         error: "bad_request",
-        message: "`parsedPlan.title` is required",
-      });
-    }
-    if (typeof originalPlanText !== "string") {
-      return reply.status(400).send({
-        error: "bad_request",
-        message: "`originalPlanText` is required",
+        message: "`parsedPlan.title` or `title` is required",
       });
     }
 
@@ -58,14 +57,18 @@ export async function eventsRoute(
       });
     }
 
-    const description = `${originalPlanText}\n\n---\nCreated via calendar-planner`;
+    const userDescription = description ?? originalPlanText ?? "";
+    const eventDescription = userDescription
+      ? `${userDescription}\n\n---\nCreated via calendar-planner`
+      : "Created via calendar-planner";
 
     try {
       const client = opts.eventsClientFactory(req.accessToken);
       const event = await createEvent(
         {
-          summary: parsedPlan.title,
-          description,
+          summary,
+          description: eventDescription,
+          location,
           start: slot.start,
           end: slot.end,
         },
