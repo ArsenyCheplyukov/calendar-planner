@@ -1,5 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
-import { getLocalTimeZone, ymdInTimeZone } from "@calendar-planner/shared";
+import {
+  getLocalTimeZone,
+  ymdInTimeZone,
+  parseYmdInTimeZone,
+  addDaysInTimeZone,
+} from "@calendar-planner/shared";
 import type { BusyMap } from "@calendar-planner/shared";
 import type { WeekViewWeek } from "../components/WeekView/index.js";
 
@@ -21,14 +26,10 @@ function isoToYmdInTimeZone(iso: string, timeZone: string): string {
   return ymdInTimeZone(timeZone, new Date(iso));
 }
 
-function addDaysYmd(ymd: string, days: number): string {
-  const parts = ymd.split("-").map(Number);
-  const y = parts[0] ?? 0;
-  const m = parts[1] ?? 1;
-  const d = parts[2] ?? 1;
-  const dt = new Date(y, m - 1, d);
-  dt.setDate(dt.getDate() + days);
-  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
+function addDaysToYmd(ymd: string, days: number, timeZone: string): string {
+  const parsed = parseYmdInTimeZone(timeZone, ymd);
+  if (!parsed) return ymd;
+  return ymdInTimeZone(timeZone, addDaysInTimeZone(timeZone, parsed, days));
 }
 
 function buildWeekUrl(start: string | null): string {
@@ -88,7 +89,7 @@ export function useWeekNavigation(): UseWeekNavigationReturn {
         (weekState.kind === "ready"
           ? isoToYmdInTimeZone(weekState.data.week.start, tz)
           : todayYmd());
-      return addDaysYmd(base, -7);
+      return addDaysToYmd(base, -7, tz);
     });
   }, [weekState]);
 
@@ -100,7 +101,7 @@ export function useWeekNavigation(): UseWeekNavigationReturn {
         (weekState.kind === "ready"
           ? isoToYmdInTimeZone(weekState.data.week.start, tz)
           : todayYmd());
-      return addDaysYmd(base, 7);
+      return addDaysToYmd(base, 7, tz);
     });
   }, [weekState]);
 

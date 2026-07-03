@@ -2,6 +2,14 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { renderHook, waitFor, act } from "@testing-library/react";
 import { useWeekNavigation } from "./useWeekNavigation.js";
 
+vi.mock("@calendar-planner/shared", async (importOriginal) => {
+  const mod = await importOriginal<typeof import("@calendar-planner/shared")>();
+  return {
+    ...mod,
+    getLocalTimeZone: () => "Europe/London",
+  };
+});
+
 describe("useWeekNavigation", () => {
   beforeEach(() => {
     vi.setSystemTime(new Date("2026-07-08T12:00:00.000Z"));
@@ -80,5 +88,21 @@ describe("useWeekNavigation", () => {
       result.current.handleToday();
     });
     expect(result.current.startParam).toBeNull();
+  });
+
+  it("navigates using time-zone-aware week arithmetic across a DST boundary", async () => {
+    vi.setSystemTime(new Date("2026-03-23T12:00:00.000Z"));
+    vi.stubGlobal("fetch", mockWeekResponse("2026-03-23T00:00:00.000Z"));
+
+    const { result } = renderHook(() => useWeekNavigation());
+    await waitFor(() => expect(result.current.weekState.kind).toBe("ready"));
+
+    act(() => {
+      result.current.handleNext();
+    });
+    await waitFor(() => {
+      const calls = (fetch as ReturnType<typeof vi.fn>).mock.calls as [string][];
+      expect(calls.some(([url]) => url.includes("start=2026-03-30"))).toBe(true);
+    });
   });
 });
