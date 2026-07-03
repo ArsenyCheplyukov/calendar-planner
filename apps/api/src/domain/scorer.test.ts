@@ -140,9 +140,10 @@ describe("scoreSlots — output", () => {
     }
   });
 
-  it("includes a human-readable Russian reason for each suggestion", () => {
+  it("returns structured scored slots without a formatted reason", () => {
     const s = slot("2026-07-08T09:00:00.000Z", "2026-07-08T10:00:00.000Z");
     const [scored] = scoreSlots([s], planFocus, DEFAULT_PREFERENCES);
-    expect(scored!.reason).toMatch(/[а-яё]/i);
+    expect(scored).toHaveProperty("score");
+    expect(scored).not.toHaveProperty("reason");
   });
 });

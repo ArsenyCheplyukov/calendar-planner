@@ -31,10 +31,11 @@ export interface Slot {
 
 export interface ScoredSlot extends Slot {
   score: number;
-  reason: string;
 }
 
-export interface Suggestion extends ScoredSlot {}
+export interface Suggestion extends ScoredSlot {
+  reason: string;
+}
 
 export interface PlanCandidate {
   candidateId: string;

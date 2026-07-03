@@ -1,8 +1,7 @@
-import type { ScoredSlot, Slot, ParsedPlan, Preferences, PlanHint, EventType, TimeOfDay } from "@calendar-planner/shared";
+import type { ScoredSlot, Slot, ParsedPlan, Preferences, PlanHint, TimeOfDay, EventType } from "@calendar-planner/shared";
 import {
   DEFAULT_PREFERENCES,
   getLocalTimeZone,
-  getParts,
   getWeekday,
   timeOfDayMinutesInTimeZone,
   ymdInTimeZone,
@@ -78,29 +77,6 @@ function deadlinePenalty(slot: Slot, deadline: string | null | undefined): numbe
   return 0;
 }
 
-function reasonForSlot(slot: Slot, type: EventType, preferences: Preferences, hint: PlanHint | null | undefined, timeZone: string): string {
-  const start = new Date(slot.start);
-  const end = new Date(slot.end);
-  const startParts = getParts(timeZone, start);
-  const endParts = getParts(timeZone, end);
-  const startDayIndex = getWeekday(timeZone, start);
-  const endDayIndex = getWeekday(timeZone, end);
-  const startDay = DAY_NAMES_RU[startDayIndex] ?? "";
-  const hh = (parts: ReturnType<typeof getParts>) =>
-    `${String(parts.hour).padStart(2, "0")}:${String(parts.minute).padStart(2, "0")}`;
-
-  const typeName =
-    type === "focus" ? "фокус-работа" :
-    type === "meeting" ? "митинг" :
-    type === "personal" ? "личное" :
-    "поручение";
-
-  const durationMin = Math.round((end.getTime() - start.getTime()) / 60000);
-  return `${startDay} ${hh(startParts)}–${hh(endParts)}, ${durationMin} мин (${typeName})`;
-}
-
-const DAY_NAMES_RU = ["вс", "пн", "вт", "ср", "чт", "пт", "сб"];
-
 function filterByHint(slots: Slot[], hint: PlanHint | null | undefined, timeZone: string): Slot[] {
   if (!hint?.window) return slots;
   const win = hint.window;
@@ -147,7 +123,6 @@ export function scoreSlots(
     return {
       ...slot,
       score,
-      reason: reasonForSlot(slot, plan.type, preferences, effectiveHint, timeZone),
     };
   });
 

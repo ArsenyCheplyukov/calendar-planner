@@ -1,8 +1,9 @@
-import type { ParsedPlan, Suggestion, Preferences, PlanCandidate } from "@calendar-planner/shared";
+import type { ParsedPlan, Suggestion, ScoredSlot, Preferences, PlanCandidate, EventType } from "@calendar-planner/shared";
 import { getFreeBusy, type GoogleCalendarClient } from "../infrastructure/google/freebusy.js";
 import { currentWeek, parseWeekStart, weekOf, toIsoRange, type Week } from "../domain/week.js";
 import { findSlots } from "../domain/slot-finder.js";
 import { scoreSlots, mergeWithHint } from "../domain/scorer.js";
+import { formatSuggestionReason } from "./format-suggestion-reason.js";
 import { getLocalTimeZone } from "@calendar-planner/shared";
 import type { PreferencesStore } from "../infrastructure/preferences/store.js";
 
@@ -56,6 +57,17 @@ export async function buildSuggestSlotsContext(
   return { preferences, effectiveTimeZone, week, busy };
 }
 
+function toSuggestions(
+  scored: ScoredSlot[],
+  type: EventType,
+  timeZone: string,
+): Suggestion[] {
+  return scored.map((slot) => ({
+    ...slot,
+    reason: formatSuggestionReason(slot, type, timeZone),
+  }));
+}
+
 export function scorePlan(
   parsed: ParsedPlan,
   context: SuggestSlotsContext,
@@ -76,7 +88,8 @@ export function scorePlan(
     effectiveTimeZone,
   );
 
-  return scoreSlots(slots, parsed, preferencesWithHint, parsed.hint, effectiveTimeZone);
+  const scored = scoreSlots(slots, parsed, preferencesWithHint, parsed.hint, effectiveTimeZone);
+  return toSuggestions(scored, parsed.type, effectiveTimeZone);
 }
 
 export async function suggestSlots(
