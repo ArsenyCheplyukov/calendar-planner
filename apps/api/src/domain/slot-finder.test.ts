@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { findSlots, type WorkingWindow } from "./slot-finder.js";
-import type { BusyMap } from "@calendar-planner/shared";
+import type { BusyMap, Preferences } from "@calendar-planner/shared";
+
+const NO_BLACKOUTS: Preferences["blackouts"] = [];
 
 const WINDOW: WorkingWindow = { start: "09:00", end: "19:00" };
 
@@ -84,5 +86,32 @@ describe("findSlots — week boundary", () => {
       expect(day).toBeGreaterThanOrEqual(6);
       expect(day).toBeLessThanOrEqual(12);
     }
+  });
+});
+
+describe("findSlots — blackouts", () => {
+  it("skips slots that overlap a blackout window", () => {
+    const blackouts: Preferences["blackouts"] = [
+      { dayOfWeek: "mon", start: "09:00", end: "12:15" },
+    ];
+    const slots = findSlots(emptyBusy(), WINDOW, 60, 0, new Date(2026, 6, 6), "UTC", blackouts);
+    const mondaySlot = slots.find((s) => s.start.startsWith("2026-07-06"));
+    expect(mondaySlot).toBeDefined();
+    expect(mondaySlot!.start).toBe("2026-07-06T12:15:00.000Z");
+  });
+
+  it("ignores blackouts on a different day of the week", () => {
+    const blackouts: Preferences["blackouts"] = [
+      { dayOfWeek: "tue", start: "09:00", end: "18:00" },
+    ];
+    const slots = findSlots(emptyBusy(), WINDOW, 60, 0, new Date(2026, 6, 6), "UTC", blackouts);
+    const mondaySlot = slots.find((s) => s.start.startsWith("2026-07-06"));
+    expect(mondaySlot).toBeDefined();
+    expect(mondaySlot!.start).toBe("2026-07-06T09:00:00.000Z");
+  });
+
+  it("treats an empty blackout list as no blackouts", () => {
+    const slots = findSlots(emptyBusy(), WINDOW, 60, 0, new Date(2026, 6, 6), "UTC", []);
+    expect(slots[0]?.start).toBe("2026-07-06T09:00:00.000Z");
   });
 });

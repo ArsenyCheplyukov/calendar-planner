@@ -1,10 +1,12 @@
-import type { Slot, BusyMap } from "@calendar-planner/shared";
+import type { Slot, BusyMap, Preferences } from "@calendar-planner/shared";
 import {
   getLocalTimeZone,
   ymdInTimeZone,
   setTimeOnDateInTimeZone,
   getParts,
   addDaysInTimeZone,
+  getWeekday,
+  timeOfDayMinutesInTimeZone,
 } from "@calendar-planner/shared";
 
 export interface WorkingWindow {
@@ -14,9 +16,40 @@ export interface WorkingWindow {
 
 const INCREMENT_MIN = 15;
 
+const DAY_OF_WEEK_TO_INDEX: Record<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun", number> = {
+  sun: 0, mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6,
+};
+
 function parseHHMM(s: string): { h: number; m: number } {
   const [h, m] = s.split(":").map(Number);
   return { h: h ?? 0, m: m ?? 0 };
+}
+
+function minutesFromHHMM(s: string): number {
+  const { h, m } = parseHHMM(s);
+  return h * 60 + m;
+}
+
+function overlapsBlackout(
+  start: Date,
+  end: Date,
+  blackouts: Preferences["blackouts"],
+  timeZone: string,
+): boolean {
+  if (blackouts.length === 0) return false;
+  const dayIndex = getWeekday(timeZone, start);
+  const startMin = timeOfDayMinutesInTimeZone(timeZone, start);
+  const endMin = timeOfDayMinutesInTimeZone(timeZone, end);
+
+  for (const blackout of blackouts) {
+    if (DAY_OF_WEEK_TO_INDEX[blackout.dayOfWeek] !== dayIndex) continue;
+    const bStart = minutesFromHHMM(blackout.start);
+    const bEnd = minutesFromHHMM(blackout.end);
+    if (startMin < bEnd && endMin > bStart) {
+      return true;
+    }
+  }
+  return false;
 }
 
 function overlapsWithBuffer(
@@ -51,6 +84,7 @@ export function findSlots(
   bufferMinutes: number,
   weekStart: Date,
   timeZone: string = getLocalTimeZone(),
+  blackouts: Preferences["blackouts"] = [],
 ): Slot[] {
   if (durationMinutes <= 0) return [];
 
@@ -81,7 +115,10 @@ export function findSlots(
       // Skip if candidate end goes past dayEnd
       if (candidateEnd.getTime() > dayEnd.getTime()) break;
 
-      if (!overlapsWithBuffer(candidateStart, candidateEnd, dayBusy, bufferMinutes)) {
+      if (
+        !overlapsWithBuffer(candidateStart, candidateEnd, dayBusy, bufferMinutes) &&
+        !overlapsBlackout(candidateStart, candidateEnd, blackouts, timeZone)
+      ) {
         found = { start: candidateStart.toISOString(), end: candidateEnd.toISOString() };
         break;
       }
