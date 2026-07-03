@@ -14,8 +14,8 @@ describe("DesignGallery", () => {
     render(<DesignGallery />);
     const section = screen.getByTestId("section-colors");
     expect(section).toBeInTheDocument();
-    expect(within(section).getByText(/warm-tinted neutrals/i)).toBeInTheDocument();
-    expect(within(section).getAllByText(/terracotta/i).length).toBeGreaterThan(0);
+    expect(within(section).getByText(/cream-tinted neutrals/i)).toBeInTheDocument();
+    expect(within(section).getAllByText(/yellow/i).length).toBeGreaterThan(0);
   });
 
   it("shows a typography section", () => {

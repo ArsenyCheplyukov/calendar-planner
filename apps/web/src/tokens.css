@@ -1,7 +1,5 @@
 /*
- * Calendar Planner — Design Tokens (Warm Calm)
- * Direction approved 2026-07-01.
- * Source: .scratch/design/calendar-planner/tokens.css
+ * Calendar Planner — Design Tokens (Soft Butter)
  *
  * Two layers:
  *   - Primitives: raw values (color scales, sizes)
@@ -16,26 +14,26 @@
   /* Color — Primitives                                                */
   /* ============================================================== */
 
-  /* Warm neutral scale (h = 50–70, slight orange tint) */
-  --warm-50:  oklch(0.97 0.012 70);
-  --warm-100: oklch(0.93 0.018 70);
-  --warm-200: oklch(0.85 0.022 70);
-  --warm-300: oklch(0.72 0.025 70);
-  --warm-400: oklch(0.58 0.025 70);
-  --warm-500: oklch(0.45 0.020 70);
-  --warm-600: oklch(0.36 0.020 65);
-  --warm-700: oklch(0.30 0.022 60);
-  --warm-800: oklch(0.25 0.022 60);
-  --warm-850: oklch(0.22 0.020 60);
-  --warm-900: oklch(0.18 0.018 55);
-  --warm-950: oklch(0.14 0.015 50);
+  /* Cream neutral scale (h = 100, low chroma yellow tint) */
+  --cream-50:  oklch(0.97 0.012 100);
+  --cream-100: oklch(0.94 0.018 100);
+  --cream-200: oklch(0.88 0.024 100);
+  --cream-300: oklch(0.78 0.028 100);
+  --cream-400: oklch(0.64 0.030 100);
+  --cream-500: oklch(0.50 0.026 100);
+  --cream-600: oklch(0.40 0.023 100);
+  --cream-700: oklch(0.32 0.021 100);
+  --cream-800: oklch(0.25 0.019 100);
+  --cream-850: oklch(0.22 0.018 100);
+  --cream-900: oklch(0.18 0.016 100);
+  --cream-950: oklch(0.13 0.013 100);
 
-  /* Terracotta accent scale (h = 35) */
-  --terracotta-300: oklch(0.80 0.10 35);
-  --terracotta-400: oklch(0.73 0.13 35);
-  --terracotta-500: oklch(0.66 0.14 35);
-  --terracotta-600: oklch(0.56 0.13 35);
-  --terracotta-700: oklch(0.46 0.10 35);
+  /* Yellow accent scale (h = 100) */
+  --yellow-300: oklch(0.86 0.10 100);
+  --yellow-400: oklch(0.80 0.12 100);
+  --yellow-500: oklch(0.72 0.13 100);
+  --yellow-600: oklch(0.62 0.12 100);
+  --yellow-700: oklch(0.52 0.10 100);
 
   /* Functional */
   --red-500:   oklch(0.62 0.18 25);
@@ -48,45 +46,45 @@
   /* ============================================================== */
 
   /* Surfaces */
-  --color-bg:             var(--warm-850);
-  --color-bg-elevated:    var(--warm-800);
-  --color-bg-overlay:     oklch(0.10 0.015 50 / 0.65);
+  --color-bg:             var(--cream-950);
+  --color-bg-elevated:    var(--cream-900);
+  --color-bg-overlay:     oklch(0.10 0.012 100 / 0.65);
 
   /* Foreground */
-  --color-fg:             var(--warm-100);
-  --color-fg-muted:       var(--warm-300);
-  --color-fg-subtle:      var(--warm-400);
-  --color-fg-inverse:     var(--warm-900);
+  --color-fg:             var(--cream-100);
+  --color-fg-muted:       var(--cream-300);
+  --color-fg-subtle:      var(--cream-500);
+  --color-fg-inverse:     var(--cream-950);
 
   /* Borders */
-  --color-border:         var(--warm-700);
-  --color-border-subtle:  var(--warm-800);
-  --color-border-strong:  var(--warm-600);
+  --color-border:         var(--cream-800);
+  --color-border-subtle:  var(--cream-900);
+  --color-border-strong:  var(--cream-700);
 
-  /* Primary (terracotta) */
-  --color-primary:        var(--terracotta-500);
-  --color-primary-hover:  var(--terracotta-400);
-  --color-primary-active: var(--terracotta-600);
-  --color-primary-fg:     var(--warm-50);
-  --color-primary-subtle: oklch(0.66 0.14 35 / 0.15);
+  /* Primary (yellow) */
+  --color-primary:        var(--yellow-400);
+  --color-primary-hover:  var(--yellow-300);
+  --color-primary-active: var(--yellow-500);
+  --color-primary-fg:     var(--cream-950);
+  --color-primary-subtle: oklch(0.80 0.12 100 / 0.15);
 
   /* Calendar-specific */
-  --color-busy:           var(--warm-700);
-  --color-busy-hover:     var(--warm-600);
-  --color-suggested:      var(--terracotta-500);
-  --color-suggested-fg:   var(--warm-50);
+  --color-busy:           var(--cream-850);
+  --color-busy-hover:     var(--cream-800);
+  --color-suggested:      var(--yellow-400);
+  --color-suggested-fg:   var(--cream-950);
 
   /* States */
   --color-destructive:    var(--red-500);
-  --color-destructive-fg: var(--warm-50);
+  --color-destructive-fg: var(--cream-50);
   --color-success:        var(--green-500);
-  --color-success-fg:     var(--warm-50);
+  --color-success-fg:     var(--cream-950);
   --color-warning:        var(--amber-500);
-  --color-warning-fg:     var(--warm-900);
+  --color-warning-fg:     var(--cream-950);
 
   /* Focus ring */
-  --color-ring:           var(--terracotta-500);
-  --color-ring-offset:    var(--warm-850);
+  --color-ring:           var(--yellow-400);
+  --color-ring-offset:    var(--cream-950);
 
   /* ============================================================== */
   /* Typography                                                        */
@@ -145,9 +143,9 @@
   /* Shadow (warm-tinted)                                              */
   /* ============================================================== */
 
-  --shadow-1: 0 1px 2px oklch(0.10 0.02 50 / 0.20);
-  --shadow-2: 0 4px 12px oklch(0.10 0.02 50 / 0.25);
-  --shadow-3: 0 10px 30px oklch(0.10 0.02 50 / 0.30);
+  --shadow-1: 0 1px 2px oklch(0.10 0.02 100 / 0.20);
+  --shadow-2: 0 4px 12px oklch(0.10 0.02 100 / 0.25);
+  --shadow-3: 0 10px 30px oklch(0.10 0.02 100 / 0.30);
 
   /* ============================================================== */
   /* Motion                                                            */

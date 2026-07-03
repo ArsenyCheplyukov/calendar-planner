@@ -5,27 +5,27 @@ import { Textarea } from "../components/Input/index.js";
 import { Surface } from "../components/Surface/index.js";
 import styles from "./DesignGallery.module.css";
 
-const WARM_SWATCHES = [
-  { name: "warm-50", value: "oklch(0.97 0.012 70)" },
-  { name: "warm-100", value: "oklch(0.93 0.018 70)" },
-  { name: "warm-200", value: "oklch(0.85 0.022 70)" },
-  { name: "warm-300", value: "oklch(0.72 0.025 70)" },
-  { name: "warm-400", value: "oklch(0.58 0.025 70)" },
-  { name: "warm-500", value: "oklch(0.45 0.020 70)" },
-  { name: "warm-600", value: "oklch(0.36 0.020 65)" },
-  { name: "warm-700", value: "oklch(0.30 0.022 60)" },
-  { name: "warm-800", value: "oklch(0.25 0.022 60)" },
-  { name: "warm-850", value: "oklch(0.22 0.020 60)" },
-  { name: "warm-900", value: "oklch(0.18 0.018 55)" },
-  { name: "warm-950", value: "oklch(0.14 0.015 50)" },
+const CREAM_SWATCHES = [
+  { name: "cream-50", value: "oklch(0.97 0.012 100)" },
+  { name: "cream-100", value: "oklch(0.94 0.018 100)" },
+  { name: "cream-200", value: "oklch(0.88 0.024 100)" },
+  { name: "cream-300", value: "oklch(0.78 0.028 100)" },
+  { name: "cream-400", value: "oklch(0.64 0.030 100)" },
+  { name: "cream-500", value: "oklch(0.50 0.026 100)" },
+  { name: "cream-600", value: "oklch(0.40 0.023 100)" },
+  { name: "cream-700", value: "oklch(0.32 0.021 100)" },
+  { name: "cream-800", value: "oklch(0.25 0.019 100)" },
+  { name: "cream-850", value: "oklch(0.22 0.018 100)" },
+  { name: "cream-900", value: "oklch(0.18 0.016 100)" },
+  { name: "cream-950", value: "oklch(0.13 0.013 100)" },
 ];
 
-const TERRACOTTA_SWATCHES = [
-  { name: "terracotta-300", value: "oklch(0.80 0.10 35)" },
-  { name: "terracotta-400", value: "oklch(0.73 0.13 35)" },
-  { name: "terracotta-500", value: "oklch(0.66 0.14 35)" },
-  { name: "terracotta-600", value: "oklch(0.56 0.13 35)" },
-  { name: "terracotta-700", value: "oklch(0.46 0.10 35)" },
+const YELLOW_SWATCHES = [
+  { name: "yellow-300", value: "oklch(0.86 0.10 100)" },
+  { name: "yellow-400", value: "oklch(0.80 0.12 100)" },
+  { name: "yellow-500", value: "oklch(0.72 0.13 100)" },
+  { name: "yellow-600", value: "oklch(0.62 0.12 100)" },
+  { name: "yellow-700", value: "oklch(0.52 0.10 100)" },
 ];
 
 const TYPE_SAMPLES = [
@@ -51,7 +51,7 @@ export function DesignGallery() {
   return (
     <main className={styles["gallery"]} data-testid="design-gallery">
       <div className={styles["gallery-inner"]}>
-        <h1 className={styles["gallery-title"]}>Design System — Warm Calm</h1>
+        <h1 className={styles["gallery-title"]}>Design System — Soft Butter</h1>
         <p className={styles["gallery-subtitle"]}>
           The locked visual language. Open <code>/</code> for the app shell, this page
           for the gallery.
@@ -60,22 +60,22 @@ export function DesignGallery() {
         <section className={styles["section"]} data-testid="section-colors">
           <h2 className={styles["section-title"]}>Color</h2>
           <p className={styles["section-description"]}>
-            Warm-tinted neutrals and a single terracotta accent. No pure black or
+            Cream-tinted neutrals and a single yellow accent. No pure black or
             white anywhere.
           </p>
 
-          <h3 className={styles["scale-name"]}>Warm (neutrals)</h3>
+          <h3 className={styles["scale-name"]}>Cream (neutrals)</h3>
           <div className={styles["swatch-grid"]}>
-            {WARM_SWATCHES.map((s) => (
+            {CREAM_SWATCHES.map((s) => (
               <Swatch key={s.name} name={s.name} value={s.value} />
             ))}
           </div>
 
           <h3 className={styles["scale-name"]} style={{ marginTop: "var(--space-6)" }}>
-            Terracotta (accent)
+            Yellow (accent)
           </h3>
           <div className={styles["swatch-grid"]}>
-            {TERRACOTTA_SWATCHES.map((s) => (
+            {YELLOW_SWATCHES.map((s) => (
               <Swatch key={s.name} name={s.name} value={s.value} />
             ))}
           </div>
@@ -147,7 +147,7 @@ export function DesignGallery() {
           <h2 className={styles["section-title"]}>Calendar preview</h2>
           <p className={styles["section-description"]}>
             The two block states used in the week grid. Busy (muted) and suggested
-            (terracotta).
+            (yellow).
           </p>
           <div className={styles["suggested-row"]}>
             <div className={styles["busy-block"]} data-testid="busy-block" />
