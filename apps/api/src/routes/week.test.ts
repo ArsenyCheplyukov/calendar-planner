@@ -9,8 +9,15 @@ function makeFakeCalendarClient(busy: Record<string, Array<{ start: string; end:
       query: vi.fn().mockResolvedValue({
         data: {
           calendars: Object.fromEntries(
-            Object.entries(busy).map(([, slots]) => ["primary", { busy: slots }]),
+            Object.entries(busy).map(([id, slots]) => [id, { busy: slots }]),
           ),
+        },
+      }),
+    },
+    calendarList: {
+      list: vi.fn().mockResolvedValue({
+        data: {
+          items: Object.keys(busy).map((id) => ({ id, summary: id })),
         },
       }),
     },

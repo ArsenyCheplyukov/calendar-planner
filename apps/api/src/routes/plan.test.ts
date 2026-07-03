@@ -75,6 +75,9 @@ describe("POST /api/plan (suggestions)", () => {
       freebusy: {
         query: vi.fn().mockResolvedValue({ data: { calendars: {} } }),
       },
+      calendarList: {
+        list: vi.fn().mockResolvedValue({ data: { items: [] } }),
+      },
     };
 
     const app = await buildApp({ calendarClientFactory: () => fakeCalendar, preferencesStore: fakeStore });
@@ -111,6 +114,9 @@ describe("POST /api/plan (suggestions)", () => {
       freebusy: {
         query: vi.fn().mockResolvedValue({ data: { calendars: {} } }),
       },
+      calendarList: {
+        list: vi.fn().mockResolvedValue({ data: { items: [] } }),
+      },
     };
 
     const app = await buildApp({ calendarClientFactory: () => fakeCalendar, preferencesStore: fakeStore });
@@ -139,6 +145,9 @@ describe("POST /api/plan (suggestions)", () => {
     const fakeCalendar = {
       freebusy: {
         query: vi.fn().mockResolvedValue({ data: { calendars: {} } }),
+      },
+      calendarList: {
+        list: vi.fn().mockResolvedValue({ data: { items: [] } }),
       },
     };
 

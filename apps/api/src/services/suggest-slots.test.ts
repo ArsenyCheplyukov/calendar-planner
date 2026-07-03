@@ -16,6 +16,9 @@ const fakeCalendarFactory: CalendarClientFactory = () =>
     freebusy: {
       query: async () => ({ data: { calendars: {} } }),
     },
+    calendarList: {
+      list: async () => ({ data: { items: [] } }),
+    },
   }) as never;
 
 const basePlan: ParsedPlan = {

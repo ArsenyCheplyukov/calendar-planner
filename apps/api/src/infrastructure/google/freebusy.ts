@@ -9,6 +9,11 @@ export interface GoogleCalendarClient {
       data: calendar_v3.Schema$FreeBusyResponse;
     }>;
   };
+  calendarList: {
+    list: (params: calendar_v3.Params$Resource$Calendarlist$List) => Promise<{
+      data: calendar_v3.Schema$CalendarList;
+    }>;
+  };
 }
 
 /**
@@ -24,18 +29,24 @@ export async function getFreeBusy(
 ): Promise<BusyMap> {
   const { timeMin, timeMax } = toIsoRange(week, timeZone);
 
+  const listRes = await client.calendarList.list({});
+  const calendars = listRes.data.items ?? [];
+  const items = calendars
+    .map((cal) => (cal.id ? { id: cal.id } : null))
+    .filter((item): item is { id: string } => item !== null);
+
   const res = await client.freebusy.query({
     requestBody: {
       timeMin,
       timeMax,
-      items: [{ id: "primary" }],
+      items,
     },
   });
 
-  const calendars = res.data.calendars ?? {};
+  const freeBusyCalendars = res.data.calendars ?? {};
   const intervals: Array<{ start: string; end: string }> = [];
 
-  for (const cal of Object.values(calendars)) {
+  for (const cal of Object.values(freeBusyCalendars)) {
     for (const slot of cal.busy ?? []) {
       if (!slot.start || !slot.end) continue;
       intervals.push({ start: slot.start, end: slot.end });

@@ -9,20 +9,34 @@ function buildWeek(): Week {
   };
 }
 
+function calendarListItem(id: string) {
+  return { id, summary: id };
+}
+
 describe("getFreeBusy", () => {
-  it("calls freeBusy.query with the primary calendar", async () => {
+  it("queries freebusy for all calendars returned by calendarList.list", async () => {
     const freebusyQuery = vi.fn().mockResolvedValue({
       data: { calendars: {} },
     });
+    const calendarList = vi.fn().mockResolvedValue({
+      data: {
+        items: [calendarListItem("primary"), calendarListItem("work@group.calendar.google.com")],
+      },
+    });
     const calendarMock = {
       freebusy: { query: freebusyQuery },
+      calendarList: { list: calendarList },
     };
 
     const result = await getFreeBusy(buildWeek(), "ya29.test", calendarMock as never);
 
+    expect(calendarList).toHaveBeenCalledTimes(1);
     expect(freebusyQuery).toHaveBeenCalledTimes(1);
     const call = freebusyQuery.mock.calls[0]![0];
-    expect(call.requestBody.items).toEqual([{ id: "primary" }]);
+    expect(call.requestBody.items).toEqual([
+      { id: "primary" },
+      { id: "work@group.calendar.google.com" },
+    ]);
     expect(call.requestBody.timeMin).toMatch(/2026-07-06/);
     expect(call.requestBody.timeMax).toMatch(/2026-07-12T23:59/);
     expect(result).toEqual({});
@@ -54,6 +68,13 @@ describe("getFreeBusy", () => {
           },
         }),
       },
+      calendarList: {
+        list: vi.fn().mockResolvedValue({
+          data: {
+            items: [calendarListItem("primary"), calendarListItem("work@group.calendar.google.com")],
+          },
+        }),
+      },
     };
 
     const result = await getFreeBusy(week, "ya29.test", calendarMock as never);
@@ -69,6 +90,9 @@ describe("getFreeBusy", () => {
   it("returns an empty map when Google returns no calendars", async () => {
     const calendarMock = {
       freebusy: { query: vi.fn().mockResolvedValue({ data: { calendars: {} } }) },
+      calendarList: {
+        list: vi.fn().mockResolvedValue({ data: { items: [] } }),
+      },
     };
     const result = await getFreeBusy(buildWeek(), "ya29.test", calendarMock as never);
     expect(result).toEqual({});
