@@ -1,7 +1,14 @@
 import { useMemo } from "react";
 import type { BusyMap } from "@calendar-planner/shared";
-import { filterSuggestionsByDay } from "@calendar-planner/shared";
+import { filterSuggestionsByDay, getLocalTimeZone } from "@calendar-planner/shared";
 import { Button } from "../Button/index.js";
+import {
+  formatTime,
+  formatYmd,
+  formatDayOfMonth,
+  formatWeekRange,
+  addDays,
+} from "../../lib/time-format.js";
 import styles from "./WeekView.module.css";
 
 export interface WeekViewWeek {
@@ -31,35 +38,6 @@ export interface WeekViewProps {
 }
 
 const DAY_NAMES_RU = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
-const MONTH_NAMES_RU = [
-  "января", "февраля", "марта", "апреля", "мая", "июня",
-  "июля", "августа", "сентября", "октября", "ноября", "декабря",
-];
-
-function ymdLocal(d: Date): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
-}
-
-function timeLabel(iso: string): string {
-  const d = new Date(iso);
-  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
-}
-
-function formatRangeLabel(start: string, end: string): string {
-  const s = new Date(start);
-  const e = new Date(end);
-  const startDay = s.getDate();
-  const endDay = e.getDate();
-  const startMonth = MONTH_NAMES_RU[s.getMonth()];
-  const endMonth = MONTH_NAMES_RU[e.getMonth()];
-  if (s.getMonth() === e.getMonth()) {
-    return `${startDay} – ${endDay} ${startMonth}`;
-  }
-  return `${startDay} ${startMonth} – ${endDay} ${endMonth}`;
-}
 
 export function WeekView({
   week,
@@ -72,24 +50,23 @@ export function WeekView({
   onBlockClick,
   onSuggestionClick,
 }: WeekViewProps) {
+  const timeZone = getLocalTimeZone();
+
   const days = useMemo(() => {
     const out: Date[] = [];
-    const start = new Date(week.start);
     for (let i = 0; i < 7; i++) {
-      const d = new Date(start);
-      d.setDate(start.getDate() + i);
-      out.push(d);
+      out.push(addDays(week.start, i, timeZone));
     }
     return out;
-  }, [week.start]);
+  }, [week.start, timeZone]);
 
-  const todayKey = today ?? ymdLocal(new Date());
+  const todayKey = today ?? formatYmd(new Date(), timeZone);
 
   return (
     <div className={styles["week"]} data-testid="week-view">
       <div className={styles["header"]}>
         <h2 className={styles["title"]}>
-          {formatRangeLabel(week.start, week.end)}
+          {formatWeekRange(week.start, week.end, timeZone)}
         </h2>
         <div className={styles["nav"]}>
           <Button variant="ghost" size="sm" onClick={onPrev} aria-label="Предыдущая неделя">
@@ -106,7 +83,7 @@ export function WeekView({
 
       <div className={styles["grid"]} data-testid="week-grid">
         {days.map((d, i) => {
-          const key = ymdLocal(d);
+          const key = formatYmd(d, timeZone);
           const dayBusy = busy[key] ?? [];
           const daySuggestions: WeekViewSuggestion[] = filterSuggestionsByDay(suggestions, key);
           const isPast = key < todayKey;
@@ -120,7 +97,7 @@ export function WeekView({
             >
               <div className={styles["day-header"]}>
                 <span className={styles["day-name"]}>{DAY_NAMES_RU[i]}</span>
-                <span className={styles["day-date"]}>{d.getDate()}</span>
+                <span className={styles["day-date"]}>{formatDayOfMonth(d, timeZone)}</span>
               </div>
               <div className={styles["day-body"]}>
                 {dayBusy.length === 0 && daySuggestions.length === 0 ? (
@@ -135,7 +112,7 @@ export function WeekView({
                         data-testid="busy-block"
                         onClick={() => onBlockClick?.(slot)}
                       >
-                        {timeLabel(slot.start)}–{timeLabel(slot.end)}
+                        {formatTime(slot.start, timeZone)}–{formatTime(slot.end, timeZone)}
                       </button>
                     ))}
                     {daySuggestions.map((s, idx) => (
@@ -146,7 +123,7 @@ export function WeekView({
                         data-testid="suggested-block"
                         onClick={() => onSuggestionClick?.(s)}
                       >
-                        {timeLabel(s.start)}–{timeLabel(s.end)}
+                        {formatTime(s.start, timeZone)}–{formatTime(s.end, timeZone)}
                       </button>
                     ))}
                   </>

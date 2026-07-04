@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { Button } from "../Button/index.js";
+import { formatTime, formatDateLong } from "../../lib/time-format.js";
 import styles from "./EventsPopover.module.css";
 
 export interface EventItem {
@@ -19,16 +20,7 @@ export interface EventsPopoverProps {
   onClose: () => void;
 }
 
-function formatTime(iso: string, allDay?: boolean): string {
-  if (allDay) return "весь день";
-  const d = new Date(iso);
-  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
-}
 
-function formatDate(iso: string): string {
-  const d = new Date(iso);
-  return d.toLocaleDateString("ru-RU", { weekday: "long", day: "numeric", month: "long" });
-}
 
 export function EventsPopover({
   windowStart,
@@ -59,7 +51,7 @@ export function EventsPopover({
           События
         </h2>
         <div className={styles["window"]} data-testid="events-window">
-          {formatDate(windowStart)}, {formatTime(windowStart)}–{formatTime(windowEnd)}
+          {formatDateLong(windowStart)}, {formatTime(windowStart)}–{formatTime(windowEnd)}
         </div>
 
         {loading && (
@@ -86,7 +78,7 @@ export function EventsPopover({
               <div key={e.id} className={styles["item"]}>
                 <span className={styles["itemTitle"]}>{e.summary}</span>
                 <span className={styles["itemTime"]}>
-                  {formatTime(e.start, e.allDay)}–{formatTime(e.end, e.allDay)}
+                  {e.allDay ? "весь день" : `${formatTime(e.start)}–${formatTime(e.end)}`}
                 </span>
               </div>
             ))}

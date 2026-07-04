@@ -1,5 +1,6 @@
 import type { Suggestion } from "@calendar-planner/shared";
 import { Button } from "../Button/index.js";
+import { formatTime, formatDayName } from "../../lib/time-format.js";
 import styles from "./Suggestions.module.css";
 
 export type SuggestionsList = Suggestion[];
@@ -8,17 +9,6 @@ export interface SuggestionsProps {
   suggestions: SuggestionsList;
   onApprove: (suggestion: Suggestion) => void;
   onSelect?: (suggestion: Suggestion) => void;
-}
-
-function formatTime(iso: string): string {
-  const d = new Date(iso);
-  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
-}
-
-function formatDay(iso: string): string {
-  const d = new Date(iso);
-  const days = ["вс", "пн", "вт", "ср", "чт", "пт", "сб"];
-  return days[d.getDay()] ?? "";
 }
 
 export function Suggestions({ suggestions, onApprove, onSelect }: SuggestionsProps) {
@@ -40,7 +30,7 @@ export function Suggestions({ suggestions, onApprove, onSelect }: SuggestionsPro
           onClick={() => onSelect?.(s)}
         >
           <div data-testid="suggestion-time" className={styles["time"]}>
-            {formatDay(s.start)} {formatTime(s.start)}–{formatTime(s.end)}
+            {formatDayName(s.start)} {formatTime(s.start)}–{formatTime(s.end)}
           </div>
           <div className={styles["reason"]}>{s.reason}</div>
           <div className={styles["score"]}>{Math.round(s.score * 100)}%</div>
