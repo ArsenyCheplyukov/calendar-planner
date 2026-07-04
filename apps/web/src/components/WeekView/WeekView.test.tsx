@@ -82,4 +82,9 @@ describe("WeekView", () => {
     expect(pastCount).toBe(4);
     expect(futureCount).toBe(3);
   });
+
+  it("does not render suggestion blocks in the calendar grid", () => {
+    render(<WeekView week={sampleWeek} busy={{}} onPrev={() => {}} onNext={() => {}} onToday={() => {}} />);
+    expect(screen.queryAllByTestId("suggested-block")).toHaveLength(0);
+  });
 });

@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import type { BusyMap } from "@calendar-planner/shared";
-import { filterSuggestionsByDay, getLocalTimeZone } from "@calendar-planner/shared";
+import { getLocalTimeZone } from "@calendar-planner/shared";
 import { Button } from "../Button/index.js";
 import {
   formatTime,
@@ -18,23 +18,14 @@ export interface WeekViewWeek {
 
 export type WeekViewBusyMap = BusyMap;
 
-export interface WeekViewSuggestion {
-  start: string;
-  end: string;
-  score?: number;
-  reason?: string;
-}
-
 export interface WeekViewProps {
   week: WeekViewWeek;
   busy: BusyMap;
-  suggestions?: WeekViewSuggestion[];
   today?: string; // YYYY-MM-DD; defaults to "now" in local time
   onPrev: () => void;
   onNext: () => void;
   onToday: () => void;
   onBlockClick?: (busySlot: { start: string; end: string }) => void;
-  onSuggestionClick?: (suggestion: WeekViewSuggestion) => void;
 }
 
 const DAY_NAMES_RU = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
@@ -42,13 +33,11 @@ const DAY_NAMES_RU = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
 export function WeekView({
   week,
   busy,
-  suggestions = [] as WeekViewSuggestion[],
   today,
   onPrev,
   onNext,
   onToday,
   onBlockClick,
-  onSuggestionClick,
 }: WeekViewProps) {
   const timeZone = getLocalTimeZone();
 
@@ -85,7 +74,6 @@ export function WeekView({
         {days.map((d, i) => {
           const key = formatYmd(d, timeZone);
           const dayBusy = busy[key] ?? [];
-          const daySuggestions: WeekViewSuggestion[] = filterSuggestionsByDay(suggestions, key);
           const isPast = key < todayKey;
           return (
             <div
@@ -100,33 +88,20 @@ export function WeekView({
                 <span className={styles["day-date"]}>{formatDayOfMonth(d, timeZone)}</span>
               </div>
               <div className={styles["day-body"]}>
-                {dayBusy.length === 0 && daySuggestions.length === 0 ? (
+                {dayBusy.length === 0 ? (
                   <span className={styles["empty"]}>—</span>
                 ) : (
-                  <>
-                    {dayBusy.map((slot, idx) => (
-                      <button
-                        key={`busy-${slot.start}-${idx}`}
-                        type="button"
-                        className={styles["busy-block"]}
-                        data-testid="busy-block"
-                        onClick={() => onBlockClick?.(slot)}
-                      >
-                        {formatTime(slot.start, timeZone)}–{formatTime(slot.end, timeZone)}
-                      </button>
-                    ))}
-                    {daySuggestions.map((s, idx) => (
-                      <button
-                        key={`sug-${s.start}-${idx}`}
-                        type="button"
-                        className={styles["suggested-block"]}
-                        data-testid="suggested-block"
-                        onClick={() => onSuggestionClick?.(s)}
-                      >
-                        {formatTime(s.start, timeZone)}–{formatTime(s.end, timeZone)}
-                      </button>
-                    ))}
-                  </>
+                  dayBusy.map((slot, idx) => (
+                    <button
+                      key={`busy-${slot.start}-${idx}`}
+                      type="button"
+                      className={styles["busy-block"]}
+                      data-testid="busy-block"
+                      onClick={() => onBlockClick?.(slot)}
+                    >
+                      {formatTime(slot.start, timeZone)}–{formatTime(slot.end, timeZone)}
+                    </button>
+                  ))
                 )}
               </div>
             </div>

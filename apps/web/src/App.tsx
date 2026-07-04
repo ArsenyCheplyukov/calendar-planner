@@ -1,9 +1,9 @@
-import { useCallback, useMemo, useRef } from "react";
-import { filterSuggestionsByWeek } from "@calendar-planner/shared";
+import { useCallback, useRef } from "react";
+import type { Suggestion } from "@calendar-planner/shared";
 import { Button } from "./components/Button/index.js";
 import { PlanInput } from "./components/PlanInput/index.js";
 import { Suggestions } from "./components/Suggestions/index.js";
-import { WeekView, type WeekViewSuggestion } from "./components/WeekView/index.js";
+import { WeekView } from "./components/WeekView/index.js";
 import { EventForm } from "./components/EventForm/index.js";
 import { PlanCandidates } from "./components/PlanCandidates/index.js";
 import { EventsPopover } from "./components/EventsPopover/index.js";
@@ -33,24 +33,10 @@ export function App() {
     useEventForm({ fetchWeek, startParam, pushToast });
   const { eventsState, handleBlockClick, handlePopoverClose } = useEventsPopover();
 
-  const suggestionsForWeek = useMemo((): WeekViewSuggestion[] => {
-    if (planState.kind !== "ready") return [];
-    if (weekState.kind !== "ready") return planState.suggestions;
-    return filterSuggestionsByWeek(
-      planState.suggestions,
-      weekState.data.week.start,
-      weekState.data.week.end,
-    );
-  }, [planState, weekState]);
-
   const handleSuggestionClick = useCallback(
-    (s: WeekViewSuggestion) => {
+    (s: Suggestion) => {
       if (planState.kind !== "ready") return;
-      openSuggestionForm(
-        { start: s.start, end: s.end, score: s.score ?? 0, reason: s.reason ?? "" },
-        planState.parsed,
-        planState.originalText,
-      );
+      openSuggestionForm(s, planState.parsed, planState.originalText);
     },
     [planState, openSuggestionForm],
   );
@@ -136,12 +122,10 @@ export function App() {
               <WeekView
                 week={weekState.data.week}
                 busy={weekState.data.busy}
-                suggestions={suggestionsForWeek}
                 onPrev={handlePrev}
                 onNext={handleNext}
                 onToday={handleToday}
                 onBlockClick={handleBlockClick}
-                onSuggestionClick={handleSuggestionClick}
               />
             </>
           )}
