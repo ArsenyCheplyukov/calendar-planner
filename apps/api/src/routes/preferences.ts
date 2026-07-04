@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import type { Preferences } from "@calendar-planner/shared";
 import { DEFAULT_PREFERENCES } from "@calendar-planner/shared";
 import type { PreferencesStore } from "../infrastructure/preferences/store.js";
+import { sendRouteError, internalError } from "./error-mapper.js";
 
 const TIME_RE = /^\d{2}:\d{2}$/;
 
@@ -75,8 +76,13 @@ export async function preferencesRoute(
   app: FastifyInstance,
   opts: PreferencesRouteOptions,
 ): Promise<void> {
-  app.get("/api/preferences", async () => {
-    return opts.preferencesStore.getPreferences();
+  app.get("/api/preferences", async (_req, reply) => {
+    try {
+      return await opts.preferencesStore.getPreferences();
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      return sendRouteError(internalError(message), reply);
+    }
   });
 
   app.put<{ Body: Partial<Preferences> }>("/api/preferences", async (req, reply) => {
@@ -85,7 +91,12 @@ export async function preferencesRoute(
     if (err) {
       return reply.status(400).send({ error: "bad_request", message: err });
     }
-    const updated = await opts.preferencesStore.updatePreferences(partial);
-    return updated;
+    try {
+      const updated = await opts.preferencesStore.updatePreferences(partial);
+      return updated;
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      return sendRouteError(internalError(message), reply);
+    }
   });
 }

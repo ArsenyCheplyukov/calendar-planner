@@ -10,6 +10,7 @@ import {
   type GoogleEventsClient,
   type ListedEvent,
 } from "../infrastructure/google/getEvents.js";
+import { sendRouteError, upstreamError } from "./error-mapper.js";
 
 export type EventsClientFactory = (accessToken: string) => GoogleCalendarClient;
 export type EventsListClientFactory = (accessToken: string) => GoogleEventsClient;
@@ -78,7 +79,7 @@ export async function eventsRoute(
       return { event };
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
-      return reply.status(502).send({ error: "upstream_error", message });
+      return sendRouteError(upstreamError(message), reply);
     }
   });
 
@@ -114,8 +115,8 @@ export async function eventsRoute(
         return { events };
       } catch (e) {
         const message = e instanceof Error ? e.message : String(e);
-        return reply.status(502).send({ error: "upstream_error", message });
-    }
+        return sendRouteError(upstreamError(message), reply);
+      }
     },
   );
 }

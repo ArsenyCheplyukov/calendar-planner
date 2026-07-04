@@ -5,6 +5,7 @@ import {
   getFreeBusy,
   type GoogleCalendarClient,
 } from "../infrastructure/google/freebusy.js";
+import { sendRouteError, upstreamError } from "./error-mapper.js";
 
 export type CalendarClientFactory = (accessToken: string) => GoogleCalendarClient;
 
@@ -54,14 +55,20 @@ export async function weekRoute(
     }
 
     const client = opts.calendarClientFactory(req.accessToken);
-    const busy = await getFreeBusy(week, req.accessToken, client, timeZone);
 
-    return {
-      week: {
-        start: week.start.toISOString(),
-        end: week.end.toISOString(),
-      },
-      busy,
-    };
+    try {
+      const busy = await getFreeBusy(week, req.accessToken, client, timeZone);
+
+      return {
+        week: {
+          start: week.start.toISOString(),
+          end: week.end.toISOString(),
+        },
+        busy,
+      };
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      return sendRouteError(upstreamError(message), reply);
+    }
   });
 }

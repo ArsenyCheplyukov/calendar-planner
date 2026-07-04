@@ -7,6 +7,7 @@ import {
 } from "../services/suggest-slots.js";
 import type { PreferencesStore } from "../infrastructure/preferences/store.js";
 import { defaultPreferencesStore } from "../infrastructure/preferences/store.js";
+import { sendRouteError, upstreamError } from "./error-mapper.js";
 
 export interface PlanRouteOptions {
   geminiApiKey?: string;
@@ -59,7 +60,7 @@ export async function planRoute(
       return result;
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
-      return reply.status(502).send({ error: "upstream_error", message });
+      return sendRouteError(upstreamError(message), reply);
     }
   });
 }

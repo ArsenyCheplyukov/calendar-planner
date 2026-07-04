@@ -8,20 +8,12 @@ import { getLocalTimeZone } from "@calendar-planner/shared";
 import type { PreferencesStore } from "../infrastructure/preferences/store.js";
 
 export type CalendarClientFactory = (accessToken: string) => GoogleCalendarClient;
-export type PlanParser = (text: string, timeZone: string) => Promise<ParsedPlan>;
 export type PlanCandidatesParser = (text: string, timeZone: string) => Promise<ParsedPlan[]>;
 
 export interface SuggestSlotsInput {
   text: string;
   startDate?: string; // YYYY-MM-DD in the target time zone
   timeZone?: string; // IANA time zone
-}
-
-export interface SuggestSlotsDeps {
-  parsePlan: PlanParser;
-  calendarClientFactory: CalendarClientFactory;
-  getAccessToken: () => Promise<string | null>;
-  preferencesStore: PreferencesStore;
 }
 
 export interface SuggestSlotsContext {
@@ -33,7 +25,7 @@ export interface SuggestSlotsContext {
 
 export async function buildSuggestSlotsContext(
   input: SuggestSlotsInput,
-  deps: Pick<SuggestSlotsDeps, "calendarClientFactory" | "getAccessToken" | "preferencesStore">,
+  deps: Pick<SuggestSlotCandidatesDeps, "calendarClientFactory" | "getAccessToken" | "preferencesStore">,
 ): Promise<SuggestSlotsContext> {
   const { calendarClientFactory, getAccessToken, preferencesStore } = deps;
 
@@ -93,22 +85,11 @@ export function scorePlan(
   return toSuggestions(scored, parsed.type, effectiveTimeZone);
 }
 
-export async function suggestSlots(
-  input: SuggestSlotsInput,
-  deps: SuggestSlotsDeps,
-): Promise<{ parsed: ParsedPlan; suggestions: Suggestion[]; preferences: Preferences }> {
-  const { parsePlan } = deps;
-
-  const context = await buildSuggestSlotsContext(input, deps);
-  const parsed = await parsePlan(input.text, context.effectiveTimeZone);
-  const scored = scorePlan(parsed, context);
-
-  return { parsed, suggestions: scored, preferences: context.preferences };
-}
-
-export interface SuggestSlotCandidatesDeps
-  extends Pick<SuggestSlotsDeps, "calendarClientFactory" | "getAccessToken" | "preferencesStore"> {
+export interface SuggestSlotCandidatesDeps {
   parsePlanCandidates: PlanCandidatesParser;
+  calendarClientFactory: CalendarClientFactory;
+  getAccessToken: () => Promise<string | null>;
+  preferencesStore: PreferencesStore;
 }
 
 export async function suggestSlotCandidates(
