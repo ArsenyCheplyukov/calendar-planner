@@ -73,6 +73,8 @@
   --color-busy-hover:     var(--cream-800);
   --color-suggested:      var(--yellow-400);
   --color-suggested-fg:   var(--cream-950);
+  --color-suggestion-bg:  oklch(0.80 0.12 100 / 0.12);
+  --color-suggestion-border: oklch(0.72 0.13 100 / 0.35);
 
   /* States */
   --color-destructive:    var(--red-500);

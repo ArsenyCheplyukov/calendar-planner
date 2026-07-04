@@ -9,8 +9,8 @@
   align-items: center;
   gap: var(--space-3);
   padding: var(--space-3) var(--space-4);
-  background: var(--color-bg-elevated);
-  border: 1px solid var(--color-border);
+  background: var(--color-suggestion-bg);
+  border: 1px dashed var(--color-suggestion-border);
   border-left: 3px solid var(--color-suggested);
   border-radius: var(--radius-md);
   cursor: pointer;
@@ -19,8 +19,23 @@
 }
 
 .card:hover {
-  background: var(--color-bg);
+  background: var(--color-bg-elevated);
   border-color: var(--color-suggested);
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-full);
+  background: var(--color-suggested);
+  color: var(--color-suggested-fg);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: var(--letter-spacing-wide);
+  text-transform: uppercase;
+  white-space: nowrap;
 }
 
 .time {

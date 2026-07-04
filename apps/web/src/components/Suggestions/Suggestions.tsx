@@ -29,6 +29,9 @@ export function Suggestions({ suggestions, onApprove, onSelect }: SuggestionsPro
           data-testid="suggestion-card"
           onClick={() => onSelect?.(s)}
         >
+          <span className={styles["badge"]} data-testid="suggestion-badge">
+            Suggested
+          </span>
           <div data-testid="suggestion-time" className={styles["time"]}>
             {formatDayName(s.start)} {formatTime(s.start)}–{formatTime(s.end)}
           </div>

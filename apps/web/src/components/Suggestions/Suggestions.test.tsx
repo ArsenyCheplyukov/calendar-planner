@@ -40,6 +40,15 @@ describe("Suggestions", () => {
     expect(within(cards[0]!).getByRole("button", { name: /add event/i })).toBeInTheDocument();
   });
 
+  it("renders a Suggested badge on each card to distinguish it from existing events", () => {
+    render(<Suggestions suggestions={sample} onApprove={() => {}} onSelect={() => {}} />);
+    const cards = screen.getAllByTestId("suggestion-card");
+
+    cards.forEach((card) => {
+      expect(within(card).getByTestId("suggestion-badge")).toHaveTextContent(/suggested/i);
+    });
+  });
+
   it("calls onApprove with the suggestion when Add event is clicked", async () => {
     const user = userEvent.setup();
     const onApprove = vi.fn();
