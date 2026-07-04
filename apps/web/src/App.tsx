@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useRef } from "react";
 import { filterSuggestionsByWeek } from "@calendar-planner/shared";
 import { Button } from "./components/Button/index.js";
 import { PlanInput } from "./components/PlanInput/index.js";
@@ -17,10 +17,17 @@ import {
 import styles from "./App.module.css";
 
 export function App() {
+  const planTextareaRef = useRef<HTMLTextAreaElement>(null);
   const { weekState, startParam, fetchWeek, handlePrev, handleNext, handleToday } =
     useWeekNavigation();
   const { planText, setPlanText, planState, handlePlanSubmit, handleCandidateSelect } =
     usePlanSubmission();
+
+  const handleRegenerate = useCallback(() => {
+    if (planState.kind !== "ready") return;
+    setPlanText(planState.originalText);
+    planTextareaRef.current?.focus();
+  }, [planState, setPlanText]);
   const { toasts, pushToast } = useToasts();
   const { eventForm, createState, openManualForm, openSuggestionForm, handleFormCancel, handleFormSubmit } =
     useEventForm({ fetchWeek, startParam, pushToast });
@@ -73,6 +80,7 @@ export function App() {
         </p>
 
         <PlanInput
+          ref={planTextareaRef}
           text={planText}
           onTextChange={setPlanText}
           onSubmit={handlePlanSubmit}
@@ -80,7 +88,12 @@ export function App() {
 
         {planState.kind === "ready" && (
           <div style={{ marginTop: "var(--space-6)" }} data-testid="suggestions-section">
-            <h2 className={styles["section-title"]}>Suggestions</h2>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--space-3)" }}>
+              <h2 className={styles["section-title"]} style={{ margin: 0 }}>Suggestions</h2>
+              <Button variant="ghost" size="sm" onClick={handleRegenerate} data-testid="regenerate-button">
+                Regenerate
+              </Button>
+            </div>
             <PlanCandidates
               candidates={planState.candidates}
               selectedCandidateId={planState.selectedCandidateId}

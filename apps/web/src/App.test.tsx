@@ -308,6 +308,86 @@ describe("App event creation flow", () => {
     expect(screen.getAllByTestId("suggestion-card")).toHaveLength(1);
   });
 
+describe("App regenerate flow", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("fills the plan textarea with the previous plan and resubmits with extra instructions", async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn().mockImplementation((url: string, init?: RequestInit) => {
+      if (url.includes("/api/week")) {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              week: { start: "2026-07-06T00:00:00.000Z", end: "2026-07-12T23:59:59.999Z" },
+              busy: {},
+            }),
+            { status: 200, headers: { "Content-Type": "application/json" } },
+          ),
+        );
+      }
+      if (url.includes("/api/plan") && init?.method === "POST") {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              parsed: {
+                title: "Встреча",
+                durationMinutes: 60,
+                type: "meeting",
+                deadline: null,
+                hint: null,
+              },
+              suggestions: [
+                {
+                  start: "2026-07-08T09:00:00.000Z",
+                  end: "2026-07-08T10:00:00.000Z",
+                  score: 0.8,
+                  reason: "ср 09:00–10:00, 60 мин (митинг)",
+                },
+              ],
+            }),
+            { status: 200, headers: { "Content-Type": "application/json" } },
+          ),
+        );
+      }
+      return Promise.reject(new Error("unexpected: " + url));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<App />);
+    await waitFor(() => screen.getByTestId("week-view"));
+
+    const textarea = screen.getByRole("textbox", { name: /план/i });
+    await user.type(textarea, "встреча с клиентом");
+    await user.click(screen.getByRole("button", { name: /suggest/i }));
+
+    await waitFor(() => screen.getByTestId("suggestions-list"));
+
+    await user.click(screen.getByTestId("regenerate-button"));
+    expect(textarea).toHaveValue("встреча с клиентом");
+
+    await user.type(textarea, " утром");
+    await user.click(screen.getByRole("button", { name: /suggest/i }));
+
+    await waitFor(() => {
+      const planCalls = fetchMock.mock.calls.filter(
+        (c) => String(c[0]).includes("/api/plan") && (c[1] as RequestInit | undefined)?.method === "POST",
+      );
+      expect(planCalls.length).toBeGreaterThanOrEqual(2);
+      const lastBody = JSON.parse((planCalls[planCalls.length - 1]![1] as RequestInit).body as string) as {
+        text: string;
+      };
+      expect(lastBody.text).toContain("встреча с клиентом");
+      expect(lastBody.text).toContain("утром");
+    });
+  });
+});
+
 describe("App week navigation", () => {
   beforeEach(() => {
     vi.restoreAllMocks();

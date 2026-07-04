@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { forwardRef, useState } from "react";
 import { Button } from "../Button/index.js";
 import { Card } from "../Card/index.js";
 import styles from "./PlanInput.module.css";
@@ -16,13 +16,16 @@ export interface PlanInputProps {
   initialResult?: unknown;
 }
 
-export function PlanInput({
-  text,
-  onTextChange,
-  onSubmit,
-  placeholder = "Опишите план: что, на сколько, к какому сроку…",
-  initialResult,
-}: PlanInputProps) {
+export const PlanInput = forwardRef<HTMLTextAreaElement, PlanInputProps>(function PlanInput(
+  {
+    text,
+    onTextChange,
+    onSubmit,
+    placeholder = "Опишите план: что, на сколько, к какому сроку…",
+    initialResult,
+  },
+  ref,
+) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastResult, setLastResult] = useState<unknown | null>(
@@ -65,6 +68,7 @@ export function PlanInput({
         </label>
         <textarea
           id="plan-textarea"
+          ref={ref}
           className={styles["textarea"]}
           value={text}
           onChange={(e) => onTextChange(e.target.value)}
@@ -96,4 +100,4 @@ export function PlanInput({
       </div>
     </Card>
   );
-}
+});
