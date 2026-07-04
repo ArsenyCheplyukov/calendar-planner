@@ -29,11 +29,21 @@ export async function getFreeBusy(
 ): Promise<BusyMap> {
   const { timeMin, timeMax } = toIsoRange(week, timeZone);
 
-  const listRes = await client.calendarList.list({});
-  const calendars = listRes.data.items ?? [];
-  const items = calendars
-    .map((cal) => (cal.id ? { id: cal.id } : null))
-    .filter((item): item is { id: string } => item !== null);
+  let items: Array<{ id: string }>;
+  try {
+    const listRes = await client.calendarList.list({});
+    const calendars = listRes.data.items ?? [];
+    items = calendars
+      .map((cal) => (cal.id ? { id: cal.id } : null))
+      .filter((item): item is { id: string } => item !== null);
+  } catch (e) {
+    // Privacy-first fallback: if the token cannot list calendars (e.g. it only
+    // has the freebusy/events scopes), still query the primary calendar instead
+    // of crashing the week view with a 502.
+    const message = e instanceof Error ? e.message : String(e);
+    console.warn(`calendarList.list failed, falling back to primary calendar: ${message}`);
+    items = [{ id: "primary" }];
+  }
 
   const res = await client.freebusy.query({
     requestBody: {

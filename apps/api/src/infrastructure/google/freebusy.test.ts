@@ -98,6 +98,25 @@ describe("getFreeBusy", () => {
     expect(result).toEqual({});
   });
 
+  it("falls back to the primary calendar when calendarList.list fails", async () => {
+    const freebusyQuery = vi.fn().mockResolvedValue({
+      data: { calendars: { primary: { busy: [] } } },
+    });
+    const calendarList = vi.fn().mockRejectedValue(new Error("Insufficient Permission"));
+    const calendarMock = {
+      freebusy: { query: freebusyQuery },
+      calendarList: { list: calendarList },
+    };
+
+    const result = await getFreeBusy(buildWeek(), "ya29.test", calendarMock as never);
+
+    expect(calendarList).toHaveBeenCalledTimes(1);
+    expect(freebusyQuery).toHaveBeenCalledTimes(1);
+    const call = freebusyQuery.mock.calls[0]![0];
+    expect(call.requestBody.items).toEqual([{ id: "primary" }]);
+    expect(result).toEqual({});
+  });
+
   it("builds an authenticated Google calendar client lazily", () => {
     const client = buildCalendarClient("ya29.test");
     expect(client.freebusy.query).toBeInstanceOf(Function);
