@@ -199,6 +199,60 @@ describe("POST /api/plan (suggestions)", () => {
     await app.close();
   });
 
+  it("reserves per-event buffers when parsing includes them", async () => {
+    const parsed = {
+      title: "Встреча",
+      durationMinutes: 60,
+      bufferBeforeMinutes: 30,
+      bufferAfterMinutes: 0,
+      type: "meeting",
+      deadline: null,
+      hint: null,
+    };
+
+    vi.stubGlobal("fetch", mockGeminiAndCalendar({ parsed, busy: {} }));
+
+    const fakeCalendar = {
+      freebusy: {
+        query: vi.fn().mockResolvedValue({
+          data: {
+            calendars: {
+              primary: {
+                busy: [{ start: "2026-07-06T08:30:00Z", end: "2026-07-06T09:00:00Z" }],
+              },
+            },
+          },
+        }),
+      },
+      calendarList: {
+        list: vi.fn().mockResolvedValue({ data: { items: [{ id: "primary" }] } }),
+      },
+    };
+
+    const app = await buildApp({
+      calendarClientFactory: () => fakeCalendar,
+      getAccessToken: async () => "ya29.test",
+      preferencesStore: fakeStore,
+    });
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/plan",
+      payload: { text: "встреча 1 час с 30 минут до", startDate: "2026-07-06" },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = res.json() as { suggestions: Array<{ start: string; end: string }> };
+    const monday = body.suggestions.find((s) => s.start.startsWith("2026-07-06"));
+    expect(monday).toBeDefined();
+    // Without the before-buffer the slot would start at 09:00. With the 30-min
+    // event buffer plus the default 15-min preference buffer, the blocked span
+    // must clear the expanded 08:15–09:15 busy window, so the first viable start
+    // is 09:45.
+    expect(monday!.start).toBe("2026-07-06T09:45:00.000Z");
+    expect(monday!.end).toBe("2026-07-06T10:45:00.000Z");
+    await app.close();
+  });
+
   it("returns 400 when text is empty", async () => {
     const app = await buildApp({ preferencesStore: fakeStore });
     const res = await app.inject({ method: "POST", url: "/api/plan", payload: { text: "" } });

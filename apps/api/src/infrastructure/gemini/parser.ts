@@ -14,6 +14,8 @@ function buildSystemInstruction(today: string, timeZone: string): string {
 Правила:
 - title: краткое название (на русском), до 60 символов. Без кавычек.
 - durationMinutes: целое число минут. По умолчанию 60, если в тексте не указано иное.
+- bufferBeforeMinutes: целое число минут подготовки/буфера перед событием. Если не указано — null.
+- bufferAfterMinutes: целое число минут буфера после события. Если не указано — null.
 - type: одно из "focus" | "meeting" | "personal" | "errand". Определи по смыслу:
   - focus: глубокая работа, кодинг, письмо, подготовка материалов
   - meeting: встреча, созвон, синк, 1-1
@@ -27,11 +29,13 @@ function buildSystemInstruction(today: string, timeZone: string): string {
 
 Примеры:
 - "подготовить презентацию к встрече в пятницу, часа 2"
-  → {"title":"Подготовить презентацию","durationMinutes":120,"type":"focus","deadline":null,"hint":{"window":{"dayOfWeek":"fri"}}}
+  → {"title":"Подготовить презентацию","durationMinutes":120,"bufferBeforeMinutes":null,"bufferAfterMinutes":null,"type":"focus","deadline":null,"hint":{"window":{"dayOfWeek":"fri"}}}
 - "созвон с клиентом завтра в 15:00, минут 30"
-  → {"title":"Созвон с клиентом","durationMinutes":30,"type":"meeting","deadline":"<завтра 15:00 в ${timeZone} с offset>","hint":null}
+  → {"title":"Созвон с клиентом","durationMinutes":30,"bufferBeforeMinutes":null,"bufferAfterMinutes":null,"type":"meeting","deadline":"<завтра 15:00 в ${timeZone} с offset>","hint":null}
 - "купить продукты"
-  → {"title":"Купить продукты","durationMinutes":60,"type":"errand","deadline":null,"hint":null}`;
+  → {"title":"Купить продукты","durationMinutes":60,"bufferBeforeMinutes":null,"bufferAfterMinutes":null,"type":"errand","deadline":null,"hint":null}
+- "встреча 1 час с 15 минут до и после"
+  → {"title":"Встреча","durationMinutes":60,"bufferBeforeMinutes":15,"bufferAfterMinutes":15,"type":"meeting","deadline":null,"hint":null}`;
 }
 
 const RESPONSE_SCHEMA = {
@@ -39,6 +43,8 @@ const RESPONSE_SCHEMA = {
   properties: {
     title: { type: "string" },
     durationMinutes: { type: "integer" },
+    bufferBeforeMinutes: { type: "integer", nullable: true },
+    bufferAfterMinutes: { type: "integer", nullable: true },
     type: {
       type: "string",
       enum: ["focus", "meeting", "personal", "errand"],
@@ -250,6 +256,14 @@ export function validateParsedPlan(raw: unknown): ParsedPlan {
   if (typeof r["durationMinutes"] !== "number" || !Number.isInteger(r["durationMinutes"])) {
     throw new Error("parsePlan: missing or non-integer durationMinutes");
   }
+  const bufferBefore = r["bufferBeforeMinutes"];
+  if (bufferBefore !== null && bufferBefore !== undefined && (!Number.isInteger(bufferBefore) || (bufferBefore as number) < 0)) {
+    throw new Error("parsePlan: bufferBeforeMinutes must be a non-negative integer or null");
+  }
+  const bufferAfter = r["bufferAfterMinutes"];
+  if (bufferAfter !== null && bufferAfter !== undefined && (!Number.isInteger(bufferAfter) || (bufferAfter as number) < 0)) {
+    throw new Error("parsePlan: bufferAfterMinutes must be a non-negative integer or null");
+  }
   if (typeof r["type"] !== "string" || !VALID_TYPES.includes(r["type"] as EventType)) {
     throw new Error(
       `parsePlan: invalid type "${String(r["type"])}", must be one of ${VALID_TYPES.join(", ")}`,
@@ -302,6 +316,8 @@ export function validateParsedPlan(raw: unknown): ParsedPlan {
   return {
     title: r["title"],
     durationMinutes: r["durationMinutes"],
+    bufferBeforeMinutes: (bufferBefore as number | null | undefined) ?? null,
+    bufferAfterMinutes: (bufferAfter as number | null | undefined) ?? null,
     type: r["type"] as EventType,
     deadline: (deadline as string | null | undefined) ?? null,
     hint: validatedHint ?? null,

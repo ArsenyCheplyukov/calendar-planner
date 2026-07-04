@@ -21,6 +21,8 @@ export interface PlanHint {
 export interface ParsedPlan {
   title: string;
   durationMinutes: number;
+  bufferBeforeMinutes?: number | null;
+  bufferAfterMinutes?: number | null;
   type: EventType;
   deadline?: string | null;
   hint?: PlanHint | null;

@@ -79,6 +79,8 @@ export function scorePlan(
     week.start,
     effectiveTimeZone,
     preferencesWithHint.blackouts,
+    parsed.bufferBeforeMinutes ?? 0,
+    parsed.bufferAfterMinutes ?? 0,
   );
 
   const scored = scoreSlots(slots, parsed, preferencesWithHint, parsed.hint, effectiveTimeZone);

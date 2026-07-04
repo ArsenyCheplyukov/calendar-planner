@@ -115,3 +115,79 @@ describe("findSlots — blackouts", () => {
     expect(slots[0]?.start).toBe("2026-07-06T09:00:00.000Z");
   });
 });
+
+describe("findSlots — event buffers", () => {
+  it("reserves a buffer before the event", () => {
+    const busy: BusyMap = {
+      "2026-07-06": [
+        { start: "2026-07-06T08:30:00.000Z", end: "2026-07-06T09:00:00.000Z" },
+      ],
+    };
+    // Without a before-buffer the slot could start at 09:00. With 30min before-buffer
+    // the blocked span starts at 08:30 and collides with the busy block, so the
+    // first viable event start is 09:30 (buffer 09:00–09:30 touches the busy end).
+    const slots = findSlots(busy, WINDOW, 60, 0, new Date(2026, 6, 6), "UTC", [], 30, 0);
+    const mondaySlot = slots.find((s) => s.start.startsWith("2026-07-06"));
+    expect(mondaySlot).toBeDefined();
+    expect(mondaySlot!.start).toBe("2026-07-06T09:30:00.000Z");
+    expect(mondaySlot!.end).toBe("2026-07-06T10:30:00.000Z");
+  });
+
+  it("reserves a buffer after the event", () => {
+    const busy: BusyMap = {
+      "2026-07-06": [
+        { start: "2026-07-06T10:00:00.000Z", end: "2026-07-06T10:30:00.000Z" },
+      ],
+    };
+    // A 60-min event needs 30 free minutes after it. The only place that fits
+    // inside the working window is after the busy block ends, so the first viable
+    // event start is 10:30.
+    const slots = findSlots(busy, WINDOW, 60, 0, new Date(2026, 6, 6), "UTC", [], 0, 30);
+    const mondaySlot = slots.find((s) => s.start.startsWith("2026-07-06"));
+    expect(mondaySlot).toBeDefined();
+    expect(mondaySlot!.start).toBe("2026-07-06T10:30:00.000Z");
+    expect(mondaySlot!.end).toBe("2026-07-06T11:30:00.000Z");
+  });
+
+  it("reserves buffers before and after the event", () => {
+    const busy: BusyMap = {
+      "2026-07-06": [
+        { start: "2026-07-06T08:30:00.000Z", end: "2026-07-06T09:00:00.000Z" },
+        { start: "2026-07-06T10:30:00.000Z", end: "2026-07-06T11:00:00.000Z" },
+      ],
+    };
+    // Event 11:30–12:30 gives before-buffer 11:00–11:30 (touches first busy end)
+    // and after-buffer 12:30–13:00 (free), so it is the earliest viable slot.
+    const slots = findSlots(busy, WINDOW, 60, 0, new Date(2026, 6, 6), "UTC", [], 30, 30);
+    const mondaySlot = slots.find((s) => s.start.startsWith("2026-07-06"));
+    expect(mondaySlot).toBeDefined();
+    expect(mondaySlot!.start).toBe("2026-07-06T11:30:00.000Z");
+    expect(mondaySlot!.end).toBe("2026-07-06T12:30:00.000Z");
+  });
+
+  it("returns no slot when the buffered span does not fit", () => {
+    const busy: BusyMap = {
+      "2026-07-06": [
+        { start: "2026-07-06T09:00:00.000Z", end: "2026-07-06T18:00:00.000Z" },
+      ],
+    };
+    const slots = findSlots(busy, WINDOW, 60, 0, new Date(2026, 6, 6), "UTC", [], 30, 30);
+    expect(slots.find((s) => s.start.startsWith("2026-07-06"))).toBeUndefined();
+  });
+
+  it("combines event buffers with the preference buffer around busy blocks", () => {
+    const busy: BusyMap = {
+      "2026-07-06": [
+        { start: "2026-07-06T09:00:00.000Z", end: "2026-07-06T09:30:00.000Z" },
+      ],
+    };
+    // 15-min preference buffer expands the busy block to 08:45–09:45.
+    // A 15-min event before-buffer means the blocked span starts at candidateStart - 15.
+    // Candidate 10:00 => blocked span 09:45–10:45, which no longer overlaps the
+    // expanded busy block, so it is the first viable event start.
+    const slots = findSlots(busy, WINDOW, 60, 15, new Date(2026, 6, 6), "UTC", [], 15, 0);
+    const mondaySlot = slots.find((s) => s.start.startsWith("2026-07-06"));
+    expect(mondaySlot).toBeDefined();
+    expect(mondaySlot!.start).toBe("2026-07-06T10:00:00.000Z");
+  });
+});

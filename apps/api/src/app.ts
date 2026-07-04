@@ -20,6 +20,7 @@ export interface BuildAppOptions {
   eventsListClientFactory?: (accessToken: string) => unknown;
   geminiApiKey?: string;
   parsePlanCandidatesFn?: PlanCandidatesParser;
+  getAccessToken?: () => Promise<string | null>;
   preferencesStore?: PreferencesStore;
 }
 
@@ -60,6 +61,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     geminiApiKey: options.geminiApiKey,
     parsePlanCandidatesFn: options.parsePlanCandidatesFn,
     calendarClientFactory: options.calendarClientFactory,
+    getAccessToken: options.getAccessToken,
     preferencesStore: options.preferencesStore,
   });
 

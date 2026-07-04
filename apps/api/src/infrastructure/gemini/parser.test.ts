@@ -21,6 +21,8 @@ function buildGeminiResponse(parsed: unknown): Response {
 const VALID_PLAN: ParsedPlan = {
   title: "Подготовить презентацию",
   durationMinutes: 120,
+  bufferBeforeMinutes: null,
+  bufferAfterMinutes: null,
   type: "focus",
   deadline: "2026-07-10T17:00:00.000Z",
   hint: { window: { dayOfWeek: "thu", timeOfDay: "morning" } },
@@ -75,6 +77,53 @@ describe("parsePlan", () => {
     ).rejects.toThrow(/durationMinutes/);
   });
 
+  it("extracts optional buffer fields", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      buildGeminiResponse({
+        title: "Встреча",
+        durationMinutes: 60,
+        bufferBeforeMinutes: 15,
+        bufferAfterMinutes: 30,
+        type: "meeting",
+        deadline: null,
+        hint: null,
+      }),
+    );
+    const result = await parsePlan("встреча 1 час с 15 минут до и 30 после", {
+      apiKey: "k",
+      fetchImpl: fetchMock as unknown as typeof fetch,
+    });
+    expect(result.bufferBeforeMinutes).toBe(15);
+    expect(result.bufferAfterMinutes).toBe(30);
+  });
+
+  it("defaults missing buffer fields to null", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(buildGeminiResponse(VALID_PLAN));
+    const result = await parsePlan("test", {
+      apiKey: "k",
+      fetchImpl: fetchMock as unknown as typeof fetch,
+    });
+    expect(result.bufferBeforeMinutes).toBeNull();
+    expect(result.bufferAfterMinutes).toBeNull();
+  });
+
+  it("rejects negative buffer values", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      buildGeminiResponse({
+        title: "Встреча",
+        durationMinutes: 60,
+        bufferBeforeMinutes: -10,
+        bufferAfterMinutes: null,
+        type: "meeting",
+        deadline: null,
+        hint: null,
+      }),
+    );
+    await expect(
+      parsePlan("test", { apiKey: "k", fetchImpl: fetchMock as unknown as typeof fetch }),
+    ).rejects.toThrow(/bufferBeforeMinutes/);
+  });
+
   it("throws when the Gemini API call fails (non-2xx)", async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response("internal error", { status: 500 }),
@@ -90,6 +139,8 @@ describe("parsePlanCandidates", () => {
     const secondPlan: ParsedPlan = {
       title: "Встреча с клиентом",
       durationMinutes: 30,
+      bufferBeforeMinutes: null,
+      bufferAfterMinutes: null,
       type: "meeting",
       deadline: null,
       hint: { window: { dayOfWeek: "wed" } },

@@ -85,6 +85,8 @@ export function findSlots(
   weekStart: Date,
   timeZone: string = getLocalTimeZone(),
   blackouts: Preferences["blackouts"] = [],
+  eventBufferBeforeMinutes: number = 0,
+  eventBufferAfterMinutes: number = 0,
 ): Slot[] {
   if (durationMinutes <= 0) return [];
 
@@ -105,6 +107,9 @@ export function findSlots(
 
     if (totalMs < durationMs) continue;
 
+    const eventBufferBeforeMs = eventBufferBeforeMinutes * 60 * 1000;
+    const eventBufferAfterMs = eventBufferAfterMinutes * 60 * 1000;
+
     // Enumerate 15-min increments
     let found: Slot | null = null;
     const increments = Math.floor(totalMs / (INCREMENT_MIN * 60 * 1000));
@@ -115,9 +120,12 @@ export function findSlots(
       // Skip if candidate end goes past dayEnd
       if (candidateEnd.getTime() > dayEnd.getTime()) break;
 
+      const blockedStart = new Date(candidateStart.getTime() - eventBufferBeforeMs);
+      const blockedEnd = new Date(candidateEnd.getTime() + eventBufferAfterMs);
+
       if (
-        !overlapsWithBuffer(candidateStart, candidateEnd, dayBusy, bufferMinutes) &&
-        !overlapsBlackout(candidateStart, candidateEnd, blackouts, timeZone)
+        !overlapsWithBuffer(blockedStart, blockedEnd, dayBusy, bufferMinutes) &&
+        !overlapsBlackout(blockedStart, blockedEnd, blackouts, timeZone)
       ) {
         found = { start: candidateStart.toISOString(), end: candidateEnd.toISOString() };
         break;
