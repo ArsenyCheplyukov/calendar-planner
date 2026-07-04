@@ -98,10 +98,21 @@ export async function suggestSlotCandidates(
   input: SuggestSlotsInput,
   deps: SuggestSlotCandidatesDeps,
 ): Promise<{ candidates: PlanCandidate[]; selectedCandidateId: string; parsed: ParsedPlan; suggestions: Suggestion[] }> {
-  const { parsePlanCandidates } = deps;
+  const { parsePlanCandidates, preferencesStore } = deps;
 
-  const context = await buildSuggestSlotsContext(input, deps);
-  const parsedPlans = await parsePlanCandidates(input.text, context.effectiveTimeZone);
+  // Resolve the time zone first so parsing can use the Owner's locale.
+  const timeZone = input.timeZone ?? getLocalTimeZone();
+  const preferences = await preferencesStore.getPreferences();
+  const effectiveTimeZone = preferences.timeZone || timeZone;
+
+  // Parse candidates before building the context: an explicit date hint must
+  // become the authoritative anchor for the planning week.
+  const parsedPlans = await parsePlanCandidates(input.text, effectiveTimeZone);
+
+  const firstCandidate = parsedPlans[0];
+  const startDate = firstCandidate?.hint?.window?.date ?? input.startDate;
+
+  const context = await buildSuggestSlotsContext({ ...input, startDate }, deps);
 
   const candidates: PlanCandidate[] = parsedPlans.map((parsedPlan, index) => ({
     candidateId: `candidate-${index + 1}`,

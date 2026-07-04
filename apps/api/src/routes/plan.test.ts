@@ -253,6 +253,43 @@ describe("POST /api/plan (suggestions)", () => {
     await app.close();
   });
 
+  it("returns a Saturday suggestion when the plan explicitly requests a Saturday", async () => {
+    const parsed = {
+      title: "Встреча",
+      durationMinutes: 60,
+      type: "meeting",
+      deadline: null,
+      hint: { window: { date: "2026-07-04" } },
+    };
+
+    vi.stubGlobal("fetch", mockGeminiAndCalendar({ parsed, busy: {} }));
+
+    const fakeCalendar = {
+      freebusy: {
+        query: vi.fn().mockResolvedValue({ data: { calendars: {} } }),
+      },
+      calendarList: {
+        list: vi.fn().mockResolvedValue({ data: { items: [] } }),
+      },
+    };
+
+    const app = await buildApp({
+      calendarClientFactory: () => fakeCalendar,
+      preferencesStore: fakeStore,
+    });
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/plan",
+      payload: { text: "встреча в субботу", timeZone: "Europe/Moscow" },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = res.json() as { suggestions: Array<{ start: string }> };
+    expect(body.suggestions.length).toBeGreaterThan(0);
+    expect(body.suggestions[0]!.start).toMatch(/^2026-07-04/);
+    await app.close();
+  });
+
   it("returns 400 when text is empty", async () => {
     const app = await buildApp({ preferencesStore: fakeStore });
     const res = await app.inject({ method: "POST", url: "/api/plan", payload: { text: "" } });

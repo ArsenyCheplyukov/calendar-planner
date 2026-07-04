@@ -3,6 +3,7 @@ import {
   DEFAULT_PREFERENCES,
   getLocalTimeZone,
   getWeekday,
+  parseYmdInTimeZone,
   timeOfDayMinutesInTimeZone,
   ymdInTimeZone,
 } from "@calendar-planner/shared";
@@ -65,6 +66,23 @@ function typeBiasBonus(slot: Slot, type: EventType, preferences: Preferences, ti
   return inRange(startMin, range) ? 0.3 : 0;
 }
 
+function weekendPenalty(slot: Slot, timeZone: string): number {
+  const dow = getWeekday(timeZone, new Date(slot.start));
+  return dow === 0 || dow === 6 ? -0.1 : 0;
+}
+
+function hintTargetsWeekend(hint: PlanHint | null | undefined, timeZone: string): boolean {
+  if (!hint?.window) return false;
+  if (hint.window.dayOfWeek === "sat" || hint.window.dayOfWeek === "sun") return true;
+  if (hint.window.date) {
+    const date = parseYmdInTimeZone(timeZone, hint.window.date);
+    if (!date) return false;
+    const dow = getWeekday(timeZone, date);
+    return dow === 0 || dow === 6;
+  }
+  return false;
+}
+
 function deadlinePenalty(slot: Slot, deadline: string | null | undefined): number {
   if (!deadline) return 0;
   const slotEnd = new Date(slot.end).getTime();
@@ -115,11 +133,14 @@ export function scoreSlots(
   const filtered = filterByHint(slots, effectiveHint, timeZone);
   if (filtered.length === 0) return [];
 
+  const skipWeekendPenalty = hintTargetsWeekend(effectiveHint, timeZone);
+
   const scored: ScoredSlot[] = filtered.map((slot) => {
     const typeBonus = typeBiasBonus(slot, plan.type, preferences, timeZone);
     const dlPenalty = deadlinePenalty(slot, effectiveDeadline);
+    const wePenalty = skipWeekendPenalty ? 0 : weekendPenalty(slot, timeZone);
     const base = 0.5;
-    const score = Math.max(0, Math.min(1, base + typeBonus + dlPenalty));
+    const score = Math.max(0, Math.min(1, base + typeBonus + dlPenalty + wePenalty));
     return {
       ...slot,
       score,

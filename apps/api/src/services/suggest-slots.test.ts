@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { suggestSlotCandidates, type PlanCandidatesParser, type CalendarClientFactory } from "./suggest-slots.js";
 import { DEFAULT_PREFERENCES } from "@calendar-planner/shared";
 import type { PreferencesStore } from "../infrastructure/preferences/store.js";
@@ -89,5 +89,90 @@ describe("suggestSlotCandidates", () => {
         },
       ),
     ).rejects.toThrow("Plan parser returned no valid candidates");
+  });
+
+  it("uses hint.window.date as the planning anchor for an explicit Saturday", async () => {
+    const parsePlanCandidates: PlanCandidatesParser = async () => [
+      { ...basePlan, type: "meeting", hint: { window: { date: "2026-07-04" } } },
+    ];
+
+    const result = await suggestSlotCandidates(
+      { text: "meeting today", timeZone: "Europe/Moscow" },
+      {
+        parsePlanCandidates,
+        calendarClientFactory: fakeCalendarFactory,
+        getAccessToken: async () => null,
+        preferencesStore: fakeStore(),
+      },
+    );
+
+    expect(result.suggestions.length).toBeGreaterThan(0);
+    expect(result.suggestions[0]!.start).toMatch(/^2026-07-04/);
+  });
+
+  it("uses hint.window.date as the planning anchor for an explicit Sunday", async () => {
+    const parsePlanCandidates: PlanCandidatesParser = async () => [
+      { ...basePlan, type: "meeting", hint: { window: { date: "2026-07-05" } } },
+    ];
+
+    const result = await suggestSlotCandidates(
+      { text: "meeting tomorrow", timeZone: "Europe/Moscow" },
+      {
+        parsePlanCandidates,
+        calendarClientFactory: fakeCalendarFactory,
+        getAccessToken: async () => null,
+        preferencesStore: fakeStore(),
+      },
+    );
+
+    expect(result.suggestions.length).toBeGreaterThan(0);
+    expect(result.suggestions[0]!.start).toMatch(/^2026-07-05/);
+  });
+
+  it("defaults to the next week when today is Saturday and no date hint is given", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: false });
+    vi.setSystemTime(new Date("2026-07-04T10:00:00Z"));
+
+    const parsePlanCandidates: PlanCandidatesParser = async () => [
+      { ...basePlan, type: "meeting", hint: null },
+    ];
+
+    const result = await suggestSlotCandidates(
+      { text: "meeting", timeZone: "Europe/Moscow" },
+      {
+        parsePlanCandidates,
+        calendarClientFactory: fakeCalendarFactory,
+        getAccessToken: async () => null,
+        preferencesStore: fakeStore(),
+      },
+    );
+
+    expect(result.suggestions.length).toBeGreaterThan(0);
+    expect(result.suggestions[0]!.start).toMatch(/^2026-07-06/);
+
+    vi.useRealTimers();
+  });
+
+  it("prefers weekdays over weekends when no date hint is given", async () => {
+    const parsePlanCandidates: PlanCandidatesParser = async () => [
+      { ...basePlan, type: "meeting", hint: null },
+    ];
+
+    const result = await suggestSlotCandidates(
+      { text: "meeting", startDate: "2026-07-06", timeZone: "Europe/Moscow" },
+      {
+        parsePlanCandidates,
+        calendarClientFactory: fakeCalendarFactory,
+        getAccessToken: async () => null,
+        preferencesStore: fakeStore(),
+      },
+    );
+
+    expect(result.suggestions.length).toBe(3);
+    for (const s of result.suggestions) {
+      const dow = new Date(s.start).getUTCDay();
+      expect(dow).not.toBe(0); // Sunday
+      expect(dow).not.toBe(6); // Saturday
+    }
   });
 });

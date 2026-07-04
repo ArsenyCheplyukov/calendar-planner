@@ -123,6 +123,49 @@ describe("scoreSlots — Plan Hint", () => {
   });
 });
 
+describe("scoreSlots — weekend preference", () => {
+  it("prefers a weekday slot over a weekend slot when no hint is given", () => {
+    // Monday 12:00 MSK and Saturday 12:00 MSK; both fall in the meeting midday window.
+    const monday = slot("2026-07-06T09:00:00.000Z", "2026-07-06T10:00:00.000Z");
+    const saturday = slot("2026-07-04T09:00:00.000Z", "2026-07-04T10:00:00.000Z");
+
+    const mondayS = scoreSlots([monday], planMeeting, DEFAULT_PREFERENCES, null, "Europe/Moscow")[0]!;
+    const saturdayS = scoreSlots([saturday], planMeeting, DEFAULT_PREFERENCES, null, "Europe/Moscow")[0]!;
+
+    expect(mondayS.score).toBeGreaterThan(saturdayS.score);
+  });
+
+  it("does not penalise a Saturday slot when hint date is Saturday", () => {
+    const saturday = slot("2026-07-04T09:00:00.000Z", "2026-07-04T10:00:00.000Z");
+
+    const withHint = scoreSlots(
+      [saturday],
+      planMeeting,
+      DEFAULT_PREFERENCES,
+      { window: { date: "2026-07-04" } },
+      "Europe/Moscow",
+    )[0]!;
+    const withoutHint = scoreSlots([saturday], planMeeting, DEFAULT_PREFERENCES, null, "Europe/Moscow")[0]!;
+
+    expect(withHint.score).toBeGreaterThan(withoutHint.score);
+  });
+
+  it("does not penalise a Sunday slot when hint dayOfWeek is Sunday", () => {
+    const sunday = slot("2026-07-05T09:00:00.000Z", "2026-07-05T10:00:00.000Z");
+
+    const withHint = scoreSlots(
+      [sunday],
+      planMeeting,
+      DEFAULT_PREFERENCES,
+      { window: { dayOfWeek: "sun" } },
+      "Europe/Moscow",
+    )[0]!;
+    const withoutHint = scoreSlots([sunday], planMeeting, DEFAULT_PREFERENCES, null, "Europe/Moscow")[0]!;
+
+    expect(withHint.score).toBeGreaterThan(withoutHint.score);
+  });
+});
+
 describe("scoreSlots — output", () => {
   it("returns at most 3 suggestions, sorted by score descending", () => {
     const slots = [
