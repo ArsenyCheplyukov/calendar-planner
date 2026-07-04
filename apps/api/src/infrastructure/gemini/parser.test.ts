@@ -132,6 +132,25 @@ describe("parsePlan", () => {
       parsePlan("test", { apiKey: "k", fetchImpl: fetchMock as unknown as typeof fetch }),
     ).rejects.toThrow(/Gemini API error: 500/);
   });
+
+  it("extracts explicit start time from hint.window.time", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      buildGeminiResponse({
+        title: "Встреча",
+        durationMinutes: 240,
+        bufferBeforeMinutes: 60,
+        bufferAfterMinutes: 60,
+        type: "meeting",
+        deadline: null,
+        hint: { window: { date: "2026-07-04", time: "16:00" } },
+      }),
+    );
+    const result = await parsePlan("встреча в субботу в 16:00", {
+      apiKey: "k",
+      fetchImpl: fetchMock as unknown as typeof fetch,
+    });
+    expect(result.hint).toEqual({ window: { date: "2026-07-04", time: "16:00" } });
+  });
 });
 
 describe("parsePlanCandidates", () => {

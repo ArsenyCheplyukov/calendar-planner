@@ -11,6 +11,7 @@ export interface TimeWindow {
   dayOfWeek?: "mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun";
   timeOfDay?: TimeOfDay;
   date?: string; // ISO date (YYYY-MM-DD)
+  time?: string; // "HH:MM" — explicit start time
 }
 
 export interface PlanHint {

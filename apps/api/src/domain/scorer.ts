@@ -22,9 +22,15 @@ export function mergeWithHint(
   preferences: Preferences,
   hint: PlanHint | null | undefined,
 ): Preferences {
-  if (!hint?.window?.timeOfDay) return { ...preferences };
-  const { start, end } = TIME_OF_DAY_WINDOWS[hint.window.timeOfDay];
-  return { ...preferences, workingHoursStart: start, workingHoursEnd: end };
+  if (!hint?.window) return { ...preferences };
+  if (hint.window.time) {
+    return { ...preferences, workingHoursStart: hint.window.time, workingHoursEnd: "23:59" };
+  }
+  if (hint.window.timeOfDay) {
+    const { start, end } = TIME_OF_DAY_WINDOWS[hint.window.timeOfDay];
+    return { ...preferences, workingHoursStart: start, workingHoursEnd: end };
+  }
+  return { ...preferences };
 }
 
 function parseHHMM(s: string): { h: number; m: number } {
@@ -64,6 +70,14 @@ function typeBiasBonus(slot: Slot, type: EventType, preferences: Preferences, ti
   if (!range) return 0.2; // "any" = neutral bonus
   const startMin = timeOfDayMinutesInTimeZone(timeZone, new Date(slot.start));
   return inRange(startMin, range) ? 0.3 : 0;
+}
+
+function timeHintBonus(slot: Slot, hint: PlanHint | null | undefined, timeZone: string): number {
+  if (!hint?.window?.time) return 0;
+  const [hintH, hintM] = hint.window.time.split(":").map(Number);
+  const hintMinutes = (hintH ?? 0) * 60 + (hintM ?? 0);
+  const slotMinutes = timeOfDayMinutesInTimeZone(timeZone, new Date(slot.start));
+  return slotMinutes === hintMinutes ? 0.35 : 0;
 }
 
 function weekendPenalty(slot: Slot, timeZone: string): number {
@@ -137,10 +151,11 @@ export function scoreSlots(
 
   const scored: ScoredSlot[] = filtered.map((slot) => {
     const typeBonus = typeBiasBonus(slot, plan.type, preferences, timeZone);
+    const tBonus = timeHintBonus(slot, effectiveHint, timeZone);
     const dlPenalty = deadlinePenalty(slot, effectiveDeadline);
     const wePenalty = skipWeekendPenalty ? 0 : weekendPenalty(slot, timeZone);
     const base = 0.5;
-    const score = Math.max(0, Math.min(1, base + typeBonus + dlPenalty + wePenalty));
+    const score = Math.max(0, Math.min(1, base + typeBonus + tBonus + dlPenalty + wePenalty));
     return {
       ...slot,
       score,

@@ -196,4 +196,40 @@ describe("suggestSlotCandidates", () => {
     // One viable slot per day across the Mon–Sun week = 7 suggestions.
     expect(result.suggestions.length).toBe(7);
   });
+
+  it("benchmark: 4-hour meeting at 16:00 today (Saturday) with 1-hour buffers", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: false });
+    vi.setSystemTime(new Date("2026-07-04T10:00:00Z"));
+
+    const parsePlanCandidates: PlanCandidatesParser = async () => [
+      {
+        title: "Встреча",
+        durationMinutes: 240,
+        bufferBeforeMinutes: 60,
+        bufferAfterMinutes: 60,
+        type: "meeting",
+        deadline: null,
+        hint: { window: { date: "2026-07-04", time: "16:00" } },
+      },
+    ];
+
+    const result = await suggestSlotCandidates(
+      { text: "Спланируй встречу на сегодня 16 часов на 4 часа с окнами по часу до и после", timeZone: "Europe/Moscow" },
+      {
+        parsePlanCandidates,
+        calendarClientFactory: fakeCalendarFactory,
+        getAccessToken: async () => null,
+        preferencesStore: fakeStore({ timeZone: "Europe/Moscow" }),
+      },
+    );
+
+    expect(result.suggestions.length).toBeGreaterThan(0);
+    const top = result.suggestions[0]!;
+    // 16:00–20:00 MSK = 13:00–17:00 UTC
+    expect(top.start).toBe("2026-07-04T13:00:00.000Z");
+    expect(top.end).toBe("2026-07-04T17:00:00.000Z");
+    expect(top.score).toBeGreaterThanOrEqual(0.8);
+
+    vi.useRealTimers();
+  });
 });

@@ -24,14 +24,15 @@ function buildSystemInstruction(today: string, timeZone: string): string {
 - deadline: ISO 8601 datetime с timezone offset (например "2026-07-10T15:00:00+03:00"). Если пользователь не указал часовой пояс явно, используй ${timeZone}. Если указал другой пояс/город/страну — используй его. Иначе null.
 - hint: null или объект { window: { ... } } если в тексте указано временное окно:
   - dayOfWeek: одно из "mon"|"tue"|"wed"|"thu"|"fri"|"sat"|"sun", если упомянут день недели
-  - timeOfDay: одно из "morning"|"midday"|"evening", если упомянуто время суток
+  - timeOfDay: одно из "morning"|"midday"|"evening", если упомянуто только общее время суток
   - date: ISO дата (YYYY-MM-DD) в ${timeZone}, если упомянута конкретная дата
+  - time: конкретное время начала в формате "HH:MM" (24-часовое), если указано точное время, например "в 16:00" или "в 16 часов"
 
 Примеры:
 - "подготовить презентацию к встрече в пятницу, часа 2"
   → {"title":"Подготовить презентацию","durationMinutes":120,"bufferBeforeMinutes":null,"bufferAfterMinutes":null,"type":"focus","deadline":null,"hint":{"window":{"dayOfWeek":"fri"}}}
 - "созвон с клиентом завтра в 15:00, минут 30"
-  → {"title":"Созвон с клиентом","durationMinutes":30,"bufferBeforeMinutes":null,"bufferAfterMinutes":null,"type":"meeting","deadline":"<завтра 15:00 в ${timeZone} с offset>","hint":null}
+  → {"title":"Созвон с клиентом","durationMinutes":30,"bufferBeforeMinutes":null,"bufferAfterMinutes":null,"type":"meeting","deadline":null,"hint":{"window":{"date":"<завтра в ${timeZone} YYYY-MM-DD>","time":"15:00"}}}
 - "купить продукты"
   → {"title":"Купить продукты","durationMinutes":60,"bufferBeforeMinutes":null,"bufferAfterMinutes":null,"type":"errand","deadline":null,"hint":null}
 - "встреча 1 час с 15 минут до и после"
@@ -69,6 +70,7 @@ const RESPONSE_SCHEMA = {
               enum: ["morning", "midday", "evening"],
             },
             date: { type: "string", nullable: true },
+            time: { type: "string", nullable: true },
           },
         },
       },
@@ -308,6 +310,12 @@ export function validateParsedPlan(raw: unknown): ParsedPlan {
           throw new Error("parsePlan: window.date must be string or null");
         }
         window.date = w["date"];
+      }
+      if (w["time"] !== null && w["time"] !== undefined) {
+        if (typeof w["time"] !== "string" || !/^\d{2}:\d{2}$/.test(w["time"])) {
+          throw new Error(`parsePlan: invalid window.time "${String(w["time"])}"`);
+        }
+        window.time = w["time"];
       }
       validatedHint = { window };
     }
