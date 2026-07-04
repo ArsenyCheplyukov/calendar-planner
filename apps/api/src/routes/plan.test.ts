@@ -60,7 +60,7 @@ describe("POST /api/plan (suggestions)", () => {
     });
   }
 
-  it("returns up to 3 suggestions, each with a score and a Russian reason", async () => {
+  it("returns scored suggestions, each with a score and a Russian reason", async () => {
     const parsed = {
       title: "Подготовить презентацию",
       durationMinutes: 60,
@@ -91,7 +91,6 @@ describe("POST /api/plan (suggestions)", () => {
     const body = res.json() as { suggestions: Array<{ score: number; reason: string }> };
     expect(body.suggestions).toBeDefined();
     expect(body.suggestions.length).toBeGreaterThan(0);
-    expect(body.suggestions.length).toBeLessThanOrEqual(3);
     for (const s of body.suggestions) {
       expect(s.score).toBeGreaterThan(0);
       expect(s.reason).toMatch(/[а-яё]/i);

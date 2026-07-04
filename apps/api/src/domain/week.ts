@@ -1,3 +1,4 @@
+import type { PlanHint } from "@calendar-planner/shared";
 import {
   getLocalTimeZone,
   getParts,
@@ -9,6 +10,10 @@ import {
   parseYmdInTimeZone,
   dateFromParts,
 } from "@calendar-planner/shared";
+
+const DAY_OF_WEEK_TO_INDEX: Record<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun", number> = {
+  sun: 0, mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6,
+};
 
 export interface Week {
   start: Date; // Monday 00:00:00.000 in the target time zone
@@ -36,20 +41,42 @@ function mondayOf(now: Date, timeZone: string): Date {
   });
 }
 
-/** If today is Sat/Sun, jump to next Monday. Otherwise the current Mon–Sun. */
+/** The Mon–Sun week containing `now`, regardless of whether `now` is a weekend. */
 export function currentWeek(
   now: Date = new Date(),
   timeZone: string = getLocalTimeZone(),
 ): Week {
-  const day = getWeekday(timeZone, now);
-  const baseMonday = mondayOf(now, timeZone);
-  if (day === 0 || day === 6) {
-    baseMonday.setTime(
-      addDaysInTimeZone(timeZone, baseMonday, 7).getTime(),
-    );
+  const monday = mondayOf(now, timeZone);
+  const sunday = addDaysInTimeZone(timeZone, monday, 6);
+  return { start: monday, end: endOfDayInTimeZone(timeZone, sunday) };
+}
+
+/**
+ * Resolve a canonical anchor date from a plan hint and a reference date.
+ *
+ * - `hint.window.date` wins if present.
+ * - `hint.window.dayOfWeek` resolves to the nearest future occurrence,
+ *   including today if the reference date already matches.
+ * - Otherwise the reference date itself is returned.
+ *
+ * The result is always a single deterministic date that drives week selection.
+ */
+export function resolveAnchorDate(
+  hint: PlanHint | null | undefined,
+  referenceDate: Date,
+  timeZone: string,
+): Date {
+  if (hint?.window?.date) {
+    const parsed = parseYmdInTimeZone(timeZone, hint.window.date);
+    if (parsed) return parsed;
   }
-  const sunday = addDaysInTimeZone(timeZone, baseMonday, 6);
-  return { start: baseMonday, end: endOfDayInTimeZone(timeZone, sunday) };
+  if (hint?.window?.dayOfWeek) {
+    const targetDow = DAY_OF_WEEK_TO_INDEX[hint.window.dayOfWeek];
+    const refDow = getWeekday(timeZone, referenceDate);
+    const delta = (targetDow - refDow + 7) % 7;
+    return addDaysInTimeZone(timeZone, referenceDate, delta);
+  }
+  return referenceDate;
 }
 
 export function previousWeek(

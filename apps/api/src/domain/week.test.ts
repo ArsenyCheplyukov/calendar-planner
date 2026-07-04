@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { currentWeek, nextWeek, previousWeek, toIsoRange, type Week } from "./week.js";
+import { currentWeek, nextWeek, previousWeek, toIsoRange, resolveAnchorDate, type Week } from "./week.js";
 
 /** Format a Date as YYYY-MM-DD in local time. */
 function localDateKey(d: Date): string {
@@ -36,31 +36,60 @@ describe("currentWeek", () => {
     expect(localDateKey(week.end)).toBe("2026-07-12");
   });
 
-  it("returns the Mon–Sun week containing a Sunday at 00:00 (Sunday treated as 'current' since it's the start of a new week)", () => {
-    // 2026-07-05 00:00 is the boundary — the new week hasn't really "begun" yet
-    // from a planning perspective. The rule says "if today is Sunday, jump to next week",
-    // which applies at any time on Sunday, including 00:00.
+  it("returns the Mon–Sun week containing a Sunday", () => {
     const sunMidnight = new Date(2026, 6, 5, 0, 0, 0);
     const week = currentWeek(sunMidnight);
 
-    expect(localDateKey(week.start)).toBe("2026-07-06");
-    expect(localDateKey(week.end)).toBe("2026-07-12");
+    expect(localDateKey(week.start)).toBe("2026-06-29");
+    expect(localDateKey(week.end)).toBe("2026-07-05");
   });
 
-  it("when today is Saturday, returns the NEXT Mon–Sun week", () => {
+  it("when today is Saturday, returns the CURRENT Mon–Sun week", () => {
     const sat = new Date(2026, 6, 4, 10, 0, 0);
     const week = currentWeek(sat);
 
-    expect(localDateKey(week.start)).toBe("2026-07-06");
-    expect(localDateKey(week.end)).toBe("2026-07-12");
+    expect(localDateKey(week.start)).toBe("2026-06-29");
+    expect(localDateKey(week.end)).toBe("2026-07-05");
   });
 
-  it("when today is Sunday, returns the NEXT Mon–Sun week", () => {
+  it("when today is Sunday, returns the CURRENT Mon–Sun week", () => {
     const sun = new Date(2026, 6, 5, 10, 0, 0);
     const week = currentWeek(sun);
 
-    expect(localDateKey(week.start)).toBe("2026-07-06");
-    expect(localDateKey(week.end)).toBe("2026-07-12");
+    expect(localDateKey(week.start)).toBe("2026-06-29");
+    expect(localDateKey(week.end)).toBe("2026-07-05");
+  });
+});
+
+describe("resolveAnchorDate", () => {
+  it("uses hint.window.date when present", () => {
+    const ref = new Date(2026, 6, 4, 10, 0, 0); // Saturday
+    const d = resolveAnchorDate({ window: { date: "2026-07-08" } }, ref, "UTC");
+    expect(localDateKey(d)).toBe("2026-07-08");
+  });
+
+  it("resolves dayOfWeek to the nearest future occurrence including today", () => {
+    const sat = new Date(2026, 6, 4, 10, 0, 0); // Saturday
+    const d = resolveAnchorDate({ window: { dayOfWeek: "sat" } }, sat, "UTC");
+    expect(localDateKey(d)).toBe("2026-07-04");
+  });
+
+  it("resolves dayOfWeek to the next occurrence when today is a different day", () => {
+    const fri = new Date(2026, 6, 3, 10, 0, 0); // Friday
+    const d = resolveAnchorDate({ window: { dayOfWeek: "sun" } }, fri, "UTC");
+    expect(localDateKey(d)).toBe("2026-07-05");
+  });
+
+  it("falls back to the reference date when no hint is given", () => {
+    const sat = new Date(2026, 6, 4, 10, 0, 0); // Saturday
+    const d = resolveAnchorDate(null, sat, "UTC");
+    expect(localDateKey(d)).toBe("2026-07-04");
+  });
+
+  it("falls back to the reference date when hint has no window", () => {
+    const sat = new Date(2026, 6, 4, 10, 0, 0); // Saturday
+    const d = resolveAnchorDate({}, sat, "UTC");
+    expect(localDateKey(d)).toBe("2026-07-04");
   });
 });
 

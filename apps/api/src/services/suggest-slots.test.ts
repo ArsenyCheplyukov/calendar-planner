@@ -129,7 +129,7 @@ describe("suggestSlotCandidates", () => {
     expect(result.suggestions[0]!.start).toMatch(/^2026-07-05/);
   });
 
-  it("defaults to the next week when today is Saturday and no date hint is given", async () => {
+  it("anchors to today on Saturday when no date hint is given", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: false });
     vi.setSystemTime(new Date("2026-07-04T10:00:00Z"));
 
@@ -147,13 +147,38 @@ describe("suggestSlotCandidates", () => {
       },
     );
 
-    expect(result.suggestions.length).toBeGreaterThan(0);
-    expect(result.suggestions[0]!.start).toMatch(/^2026-07-06/);
+    // The search week must include today (Saturday) instead of jumping to next week.
+    const dates = result.suggestions.map((s) => s.start.slice(0, 10));
+    expect(dates).toContain("2026-07-04");
 
     vi.useRealTimers();
   });
 
-  it("prefers weekdays over weekends when no date hint is given", async () => {
+  it("anchors dayOfWeek hint to today when today matches the requested day", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: false });
+    vi.setSystemTime(new Date("2026-07-04T10:00:00Z"));
+
+    const parsePlanCandidates: PlanCandidatesParser = async () => [
+      { ...basePlan, type: "meeting", hint: { window: { dayOfWeek: "sat" } } },
+    ];
+
+    const result = await suggestSlotCandidates(
+      { text: "meeting on Saturday", timeZone: "Europe/Moscow" },
+      {
+        parsePlanCandidates,
+        calendarClientFactory: fakeCalendarFactory,
+        getAccessToken: async () => null,
+        preferencesStore: fakeStore(),
+      },
+    );
+
+    expect(result.suggestions.length).toBeGreaterThan(0);
+    expect(result.suggestions[0]!.start).toMatch(/^2026-07-04/);
+
+    vi.useRealTimers();
+  });
+
+  it("returns all scored suggestions instead of hardcoded top 3", async () => {
     const parsePlanCandidates: PlanCandidatesParser = async () => [
       { ...basePlan, type: "meeting", hint: null },
     ];
@@ -168,11 +193,7 @@ describe("suggestSlotCandidates", () => {
       },
     );
 
-    expect(result.suggestions.length).toBe(3);
-    for (const s of result.suggestions) {
-      const dow = new Date(s.start).getUTCDay();
-      expect(dow).not.toBe(0); // Sunday
-      expect(dow).not.toBe(6); // Saturday
-    }
+    // One viable slot per day across the Mon–Sun week = 7 suggestions.
+    expect(result.suggestions.length).toBe(7);
   });
 });

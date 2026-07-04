@@ -1,10 +1,10 @@
 import type { ParsedPlan, Suggestion, ScoredSlot, Preferences, PlanCandidate, EventType } from "@calendar-planner/shared";
 import { getFreeBusy, type GoogleCalendarClient } from "../infrastructure/google/freebusy.js";
-import { currentWeek, parseWeekStart, weekOf, toIsoRange, type Week } from "../domain/week.js";
+import { resolveAnchorDate, parseWeekStart, weekOf, toIsoRange, type Week } from "../domain/week.js";
 import { findSlots } from "../domain/slot-finder.js";
 import { scoreSlots, mergeWithHint } from "../domain/scorer.js";
 import { formatSuggestionReason } from "./format-suggestion-reason.js";
-import { getLocalTimeZone } from "@calendar-planner/shared";
+import { getLocalTimeZone, ymdInTimeZone } from "@calendar-planner/shared";
 import type { PreferencesStore } from "../infrastructure/preferences/store.js";
 
 export type CalendarClientFactory = (accessToken: string) => GoogleCalendarClient;
@@ -37,7 +37,7 @@ export async function buildSuggestSlotsContext(
   const parsedStartDate = startDate ? parseWeekStart(startDate, effectiveTimeZone) : null;
   const week = parsedStartDate
     ? weekOf(parsedStartDate, effectiveTimeZone)
-    : currentWeek(new Date(), effectiveTimeZone);
+    : weekOf(new Date(), effectiveTimeZone);
 
   const accessToken = await getAccessToken();
   let busy: Awaited<ReturnType<typeof getFreeBusy>> = {};
@@ -110,9 +110,15 @@ export async function suggestSlotCandidates(
   const parsedPlans = await parsePlanCandidates(input.text, effectiveTimeZone);
 
   const firstCandidate = parsedPlans[0];
-  const startDate = firstCandidate?.hint?.window?.date ?? input.startDate;
+  const referenceDate = new Date();
+  const anchorDate = input.startDate
+    ? (parseWeekStart(input.startDate, effectiveTimeZone) ?? referenceDate)
+    : resolveAnchorDate(firstCandidate?.hint, referenceDate, effectiveTimeZone);
 
-  const context = await buildSuggestSlotsContext({ ...input, startDate }, deps);
+  const context = await buildSuggestSlotsContext(
+    { ...input, startDate: ymdInTimeZone(effectiveTimeZone, anchorDate) },
+    deps,
+  );
 
   const candidates: PlanCandidate[] = parsedPlans.map((parsedPlan, index) => ({
     candidateId: `candidate-${index + 1}`,

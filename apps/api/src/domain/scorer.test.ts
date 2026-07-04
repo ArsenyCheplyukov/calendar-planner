@@ -167,7 +167,7 @@ describe("scoreSlots — weekend preference", () => {
 });
 
 describe("scoreSlots — output", () => {
-  it("returns at most 3 suggestions, sorted by score descending", () => {
+  it("returns all scored slots sorted by score descending", () => {
     const slots = [
       slot("2026-07-06T09:00:00.000Z", "2026-07-06T10:00:00.000Z"),
       slot("2026-07-07T10:00:00.000Z", "2026-07-07T11:00:00.000Z"),
@@ -177,7 +177,7 @@ describe("scoreSlots — output", () => {
     ];
 
     const scored = scoreSlots(slots, planFocus, DEFAULT_PREFERENCES);
-    expect(scored).toHaveLength(3);
+    expect(scored).toHaveLength(slots.length);
     for (let i = 1; i < scored.length; i++) {
       expect(scored[i - 1]!.score).toBeGreaterThanOrEqual(scored[i]!.score);
     }

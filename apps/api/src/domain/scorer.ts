@@ -148,5 +148,5 @@ export function scoreSlots(
   });
 
   scored.sort((a, b) => b.score - a.score);
-  return scored.slice(0, 3);
+  return scored;
 }
