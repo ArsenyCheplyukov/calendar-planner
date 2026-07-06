@@ -83,8 +83,38 @@ describe("WeekView", () => {
     expect(futureCount).toBe(3);
   });
 
-  it("does not render suggestion blocks in the calendar grid", () => {
+  it("does not render proposal blocks when no proposals are provided", () => {
     render(<WeekView week={sampleWeek} busy={{}} onPrev={() => {}} onNext={() => {}} onToday={() => {}} />);
-    expect(screen.queryAllByTestId("suggested-block")).toHaveLength(0);
+    expect(screen.queryAllByTestId("proposal-block")).toHaveLength(0);
+  });
+
+  it("renders proposal blocks with dashed style and marks the selected one", () => {
+    const proposals = [
+      {
+        candidateId: "candidate-1",
+        suggestion: { start: "2026-07-08T09:00:00Z", end: "2026-07-08T10:00:00Z", score: 0.9, reason: "focus" },
+        selected: true,
+      },
+      {
+        candidateId: "candidate-2",
+        suggestion: { start: "2026-07-08T10:00:00Z", end: "2026-07-08T11:00:00Z", score: 0.8, reason: "focus" },
+        selected: false,
+      },
+    ];
+    render(
+      <WeekView
+        week={sampleWeek}
+        busy={{}}
+        proposals={proposals}
+        onPrev={() => {}}
+        onNext={() => {}}
+        onToday={() => {}}
+      />,
+    );
+
+    const blocks = screen.getAllByTestId("proposal-block");
+    expect(blocks).toHaveLength(2);
+    expect(blocks[0]).toHaveAttribute("data-selected", "true");
+    expect(blocks[1]).toHaveAttribute("data-selected", "false");
   });
 });

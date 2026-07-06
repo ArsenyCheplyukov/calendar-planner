@@ -1,10 +1,14 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { PlanCandidates } from "./PlanCandidates.js";
-import type { PlanCandidate } from "@calendar-planner/shared";
+import type { PlanCandidate, Suggestion } from "@calendar-planner/shared";
 
-function makeCandidate(index: number, hint?: PlanCandidate["parsedPlan"]["hint"]): PlanCandidate {
+function makeSuggestion(start: string, end: string, score: number, reason: string): Suggestion {
+  return { start, end, score, reason };
+}
+
+function makeCandidate(index: number, suggestion?: Suggestion): PlanCandidate {
   return {
     candidateId: `candidate-${index}`,
     rank: index,
@@ -13,14 +17,14 @@ function makeCandidate(index: number, hint?: PlanCandidate["parsedPlan"]["hint"]
       durationMinutes: 60,
       type: "focus",
       deadline: null,
-      hint: hint ?? null,
+      hint: null,
     },
-    suggestions: [],
+    suggestions: suggestion ? [suggestion] : [],
   };
 }
 
 describe("PlanCandidates", () => {
-  it("renders one item per candidate", () => {
+  it("renders one card per candidate", () => {
     render(
       <PlanCandidates
         candidates={[makeCandidate(1), makeCandidate(2)]}
@@ -28,10 +32,10 @@ describe("PlanCandidates", () => {
         onSelect={() => {}}
       />,
     );
-    expect(screen.getAllByRole("radio")).toHaveLength(2);
+    expect(screen.getAllByTestId("plan-candidate-card")).toHaveLength(2);
   });
 
-  it("pre-selects the candidate matching selectedCandidateId", () => {
+  it("marks the selected candidate", () => {
     render(
       <PlanCandidates
         candidates={[makeCandidate(1), makeCandidate(2)]}
@@ -39,11 +43,12 @@ describe("PlanCandidates", () => {
         onSelect={() => {}}
       />,
     );
-    expect(screen.getByRole("radio", { name: /Plan 2/i })).toBeChecked();
-    expect(screen.getByRole("radio", { name: /Plan 1/i })).not.toBeChecked();
+    const cards = screen.getAllByTestId("plan-candidate-card");
+    expect(cards[0]).toHaveAttribute("data-selected", "false");
+    expect(cards[1]).toHaveAttribute("data-selected", "true");
   });
 
-  it("calls onSelect with the candidate id when a candidate is selected", async () => {
+  it("calls onSelect when a card is clicked", async () => {
     const user = userEvent.setup();
     const onSelect = vi.fn();
     render(
@@ -54,34 +59,43 @@ describe("PlanCandidates", () => {
       />,
     );
 
-    await user.click(screen.getByRole("radio", { name: /Plan 2/i }));
+    await user.click(screen.getAllByTestId("plan-candidate-card")[1]!);
     expect(onSelect).toHaveBeenCalledWith("candidate-2");
   });
 
-  it("shows up to 10 candidates by default and expands when asked", async () => {
-    const user = userEvent.setup();
-    const candidates = Array.from({ length: 12 }, (_, i) => makeCandidate(i + 1));
-    render(
-      <PlanCandidates
-        candidates={candidates}
-        selectedCandidateId="candidate-1"
-        onSelect={() => {}}
-      />,
-    );
+  it("shows the top suggestion time, reason, and score on each card", () => {
+    const candidates = [
+      makeCandidate(1, makeSuggestion("2026-07-08T09:00:00.000Z", "2026-07-08T10:00:00.000Z", 0.85, "фокус")),
+      makeCandidate(2, makeSuggestion("2026-07-08T10:00:00.000Z", "2026-07-08T11:00:00.000Z", 0.7, "фокус")),
+    ];
+    render(<PlanCandidates candidates={candidates} selectedCandidateId="candidate-1" onSelect={() => {}} />);
 
-    expect(screen.getAllByRole("radio")).toHaveLength(10);
-    await user.click(screen.getByRole("button", { name: /show more/i }));
-    expect(screen.getAllByRole("radio")).toHaveLength(12);
+    const cards = screen.getAllByTestId("plan-candidate-card");
+    expect(within(cards[0]!).getByTestId("candidate-time")).toHaveTextContent(/09:00/);
+    expect(within(cards[0]!).getByText(/фокус/)).toBeInTheDocument();
+    expect(within(cards[0]!).getByText(/85%/)).toBeInTheDocument();
   });
 
-  it("does not render when there is only one candidate", () => {
-    const { container } = render(
+  it("calls onApprove with the candidate when Add event is clicked", async () => {
+    const user = userEvent.setup();
+    const onApprove = vi.fn();
+    const candidates = [
+      makeCandidate(1, makeSuggestion("2026-07-08T09:00:00.000Z", "2026-07-08T10:00:00.000Z", 0.85, "фокус")),
+    ];
+    render(<PlanCandidates candidates={candidates} selectedCandidateId="candidate-1" onSelect={() => {}} onApprove={onApprove} />);
+
+    await user.click(screen.getByRole("button", { name: /add event/i }));
+    expect(onApprove).toHaveBeenCalledWith(candidates[0]);
+  });
+
+  it("renders even when there is only one candidate", () => {
+    render(
       <PlanCandidates
-        candidates={[makeCandidate(1)]}
+        candidates={[makeCandidate(1, makeSuggestion("2026-07-08T09:00:00.000Z", "2026-07-08T10:00:00.000Z", 0.85, "фокус"))]}
         selectedCandidateId="candidate-1"
         onSelect={() => {}}
       />,
     );
-    expect(container.firstChild).toBeNull();
+    expect(screen.getByTestId("plan-candidates")).toBeInTheDocument();
   });
 });

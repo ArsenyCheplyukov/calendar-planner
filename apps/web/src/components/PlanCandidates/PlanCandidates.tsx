@@ -1,102 +1,69 @@
-import { useState } from "react";
-import type { PlanCandidate } from "@calendar-planner/shared";
+import type { PlanCandidate, Suggestion } from "@calendar-planner/shared";
+import { Button } from "../Button/index.js";
+import { formatTime, formatDayName } from "../../lib/time-format.js";
 import styles from "./PlanCandidates.module.css";
-
-const DEFAULT_VISIBLE_COUNT = 10;
-
-const DAY_NAMES_RU = [
-  "воскресенье",
-  "понедельник",
-  "вторник",
-  "среда",
-  "четверг",
-  "пятница",
-  "суббота",
-];
-
-const TIME_OF_DAY_RU: Record<"morning" | "midday" | "evening", string> = {
-  morning: "утро",
-  midday: "день",
-  evening: "вечер",
-};
-
-const DAY_INDEX: Record<string, number> = {
-  mon: 1,
-  tue: 2,
-  wed: 3,
-  thu: 4,
-  fri: 5,
-  sat: 6,
-  sun: 0,
-};
 
 export interface PlanCandidatesProps {
   candidates: PlanCandidate[];
   selectedCandidateId: string;
   onSelect: (candidateId: string) => void;
+  onApprove?: (candidate: PlanCandidate) => void;
 }
 
-function formatHint(hint?: PlanCandidate["parsedPlan"]["hint"]): string | null {
-  if (!hint?.window) return null;
-  const parts: string[] = [];
-  if (hint.window.dayOfWeek) {
-    const dayIndex = DAY_INDEX[hint.window.dayOfWeek];
-    parts.push(dayIndex !== undefined ? DAY_NAMES_RU[dayIndex]! : hint.window.dayOfWeek);
-  }
-  if (hint.window.timeOfDay) {
-    parts.push(TIME_OF_DAY_RU[hint.window.timeOfDay] ?? hint.window.timeOfDay);
-  }
-  if (hint.window.date) {
-    parts.push(hint.window.date);
-  }
-  return parts.join(", ");
+function topSuggestion(candidate: PlanCandidate): Suggestion | null {
+  return candidate.suggestions[0] ?? null;
 }
 
-export function PlanCandidates({ candidates, selectedCandidateId, onSelect }: PlanCandidatesProps) {
-  if (candidates.length <= 1) {
+export function PlanCandidates({ candidates, selectedCandidateId, onSelect, onApprove }: PlanCandidatesProps) {
+  if (candidates.length === 0) {
     return null;
   }
 
-  const [expanded, setExpanded] = useState(false);
-  const visibleCount = expanded ? candidates.length : Math.min(DEFAULT_VISIBLE_COUNT, candidates.length);
-  const visible = candidates.slice(0, visibleCount);
-  const hasMore = candidates.length > DEFAULT_VISIBLE_COUNT && !expanded;
-
   return (
     <div className={styles["list"]} data-testid="plan-candidates">
-      {visible.map((candidate) => {
-        const hintText = formatHint(candidate.parsedPlan.hint);
-        const label = hintText
-          ? `${candidate.parsedPlan.title} (${hintText})`
-          : candidate.parsedPlan.title;
+      {candidates.map((candidate) => {
         const isSelected = candidate.candidateId === selectedCandidateId;
+        const suggestion = topSuggestion(candidate);
 
         return (
-          <label
+          <div
             key={candidate.candidateId}
-            className={`${styles["item"]} ${isSelected ? styles["selected"] : ""}`}
-            data-testid="plan-candidate-item"
+            className={`${styles["card"]} ${isSelected ? styles["selected"] : ""}`}
+            data-testid="plan-candidate-card"
+            data-selected={isSelected ? "true" : "false"}
+            onClick={() => onSelect(candidate.candidateId)}
           >
-            <input
-              type="radio"
-              name="plan-candidate"
-              value={candidate.candidateId}
-              checked={isSelected}
-              onChange={() => onSelect(candidate.candidateId)}
-            />
-            <span className={styles["label"]}>{label}</span>
-          </label>
+            <div className={styles["row"]}>
+              <span className={styles["title"]}>{candidate.parsedPlan.title}</span>
+              {suggestion && (
+                <span className={styles["score"]}>{Math.round(suggestion.score * 100)}%</span>
+              )}
+            </div>
+            {suggestion ? (
+              <div className={styles["time"]} data-testid="candidate-time">
+                {formatDayName(suggestion.start)} {formatTime(suggestion.start)}–{formatTime(suggestion.end)}
+              </div>
+            ) : (
+              <div className={styles["no-slot"]}>Нет подходящего слота</div>
+            )}
+            {suggestion && (
+              <div className={styles["reason"]}>{suggestion.reason}</div>
+            )}
+            <div className={styles["footer"]}>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onApprove?.(candidate);
+                }}
+              >
+                Add event
+              </Button>
+            </div>
+          </div>
         );
       })}
-      {hasMore && (
-        <button
-          type="button"
-          className={styles["expand"]}
-          onClick={() => setExpanded(true)}
-        >
-          Show more
-        </button>
-      )}
     </div>
   );
 }

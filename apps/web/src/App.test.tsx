@@ -76,7 +76,7 @@ describe("App event creation flow", () => {
     await user.type(textarea, "подготовить презентацию");
     await user.click(screen.getByRole("button", { name: /suggest/i }));
 
-    await waitFor(() => screen.getByTestId("suggestions-list"));
+    await waitFor(() => screen.getByTestId("plan-candidates"));
     await user.click(screen.getAllByRole("button", { name: /add event/i })[0]!);
 
     const dialog = await screen.findByRole("dialog");
@@ -111,7 +111,7 @@ describe("App event creation flow", () => {
     const textarea = screen.getByRole("textbox", { name: /план/i });
     await user.type(textarea, "x");
     await user.click(screen.getByRole("button", { name: /suggest/i }));
-    await waitFor(() => screen.getByTestId("suggestions-list"));
+    await waitFor(() => screen.getByTestId("plan-candidates"));
     await user.click(screen.getAllByRole("button", { name: /add event/i })[0]!);
 
     const dialog = await screen.findByRole("dialog");
@@ -234,13 +234,13 @@ describe("App event creation flow", () => {
     await user.click(screen.getByRole("button", { name: /suggest/i }));
 
     await waitFor(() => screen.getByTestId("plan-candidates"));
-    expect(screen.getAllByTestId("suggestion-card")).toHaveLength(1);
-    expect(screen.getByTestId("suggestions-list")).toHaveTextContent(/пн 09:00/);
+    expect(screen.getAllByTestId("plan-candidate-card")).toHaveLength(2);
+    expect(screen.getByTestId("plan-candidates")).toHaveTextContent(/пн 09:00/);
 
-    await user.click(screen.getByRole("radio", { name: /среда/i }));
+    await user.click(screen.getAllByTestId("plan-candidate-card")[1]!);
 
     await waitFor(() => {
-      expect(screen.getByTestId("suggestions-list")).toHaveTextContent(/ср 09:00/);
+      expect(screen.getByTestId("plan-candidates")).toHaveTextContent(/ср 09:00/);
     });
   });
 
@@ -304,8 +304,8 @@ describe("App event creation flow", () => {
     await user.type(textarea, "подготовить презентацию");
     await user.click(screen.getByRole("button", { name: /suggest/i }));
 
-    await waitFor(() => screen.getByTestId("suggestions-list"));
-    expect(screen.getAllByTestId("suggestion-card")).toHaveLength(1);
+    await waitFor(() => screen.getByTestId("plan-candidates"));
+    expect(screen.getAllByTestId("plan-candidate-card")).toHaveLength(1);
   });
 
 describe("App regenerate flow", () => {
@@ -366,7 +366,7 @@ describe("App regenerate flow", () => {
     await user.type(textarea, "встреча с клиентом");
     await user.click(screen.getByRole("button", { name: /suggest/i }));
 
-    await waitFor(() => screen.getByTestId("suggestions-list"));
+    await waitFor(() => screen.getByTestId("plan-candidates"));
 
     await user.click(screen.getByTestId("regenerate-button"));
     expect(textarea).toHaveValue("встреча с клиентом");

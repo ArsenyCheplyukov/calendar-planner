@@ -1,12 +1,12 @@
 import { useCallback, useRef } from "react";
-import type { Suggestion } from "@calendar-planner/shared";
+import type { PlanCandidate } from "@calendar-planner/shared";
 import { Button } from "./components/Button/index.js";
 import { PlanInput } from "./components/PlanInput/index.js";
-import { Suggestions } from "./components/Suggestions/index.js";
 import { WeekView } from "./components/WeekView/index.js";
 import { EventForm } from "./components/EventForm/index.js";
 import { PlanCandidates } from "./components/PlanCandidates/index.js";
 import { EventsPopover } from "./components/EventsPopover/index.js";
+import type { WeekViewProposal } from "./components/WeekView/WeekView.js";
 import {
   useWeekNavigation,
   usePlanSubmission,
@@ -33,13 +33,22 @@ export function App() {
     useEventForm({ fetchWeek, startParam, pushToast });
   const { eventsState, handleBlockClick, handlePopoverClose } = useEventsPopover();
 
-  const handleSuggestionClick = useCallback(
-    (s: Suggestion) => {
+  const handleCandidateApprove = useCallback(
+    (candidate: PlanCandidate) => {
       if (planState.kind !== "ready") return;
-      openSuggestionForm(s, planState.parsed, planState.originalText);
+      const suggestion = candidate.suggestions[0];
+      if (!suggestion) return;
+      openSuggestionForm(suggestion, candidate.parsedPlan, planState.originalText);
     },
     [planState, openSuggestionForm],
   );
+
+  const proposals: WeekViewProposal[] =
+    planState.kind === "ready"
+      ? planState.candidates
+          .map((c) => ({ candidateId: c.candidateId, suggestion: c.suggestions[0], selected: c.candidateId === planState.selectedCandidateId }))
+          .filter((p): p is WeekViewProposal => !!p.suggestion)
+      : [];
 
   const formInitialValues =
     eventForm.kind === "suggestion"
@@ -84,11 +93,7 @@ export function App() {
               candidates={planState.candidates}
               selectedCandidateId={planState.selectedCandidateId}
               onSelect={handleCandidateSelect}
-            />
-            <Suggestions
-              suggestions={planState.suggestions}
-              onApprove={handleSuggestionClick}
-              onSelect={handleSuggestionClick}
+              onApprove={handleCandidateApprove}
             />
           </div>
         )}
@@ -122,10 +127,12 @@ export function App() {
               <WeekView
                 week={weekState.data.week}
                 busy={weekState.data.busy}
+                proposals={proposals}
                 onPrev={handlePrev}
                 onNext={handleNext}
                 onToday={handleToday}
                 onBlockClick={handleBlockClick}
+                onProposalClick={handleCandidateSelect}
               />
             </>
           )}
