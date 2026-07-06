@@ -35,6 +35,9 @@ apps/api/prisma/dev.db-journal
 apps/api/prisma/**/*.db
 apps/api/prisma/**/*.db-journal
 
-# Agent handoffs and design scratch (not source code)
-.agents/handoffs/
-.scratch/design/
+# Agent / scratch / docs (not source code)
+.agents/
+.scratch/
+docs/
+AGENTS.md
+CONTEXT.md
