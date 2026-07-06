@@ -5,7 +5,8 @@ import type { EventFormData } from "../components/EventForm/index.js";
 export type EventFormState =
   | { kind: "closed" }
   | { kind: "manual" }
-  | { kind: "suggestion"; suggestion: Suggestion; parsedPlan: ParsedPlan; originalPlanText: string };
+  | { kind: "suggestion"; suggestion: Suggestion; parsedPlan: ParsedPlan; originalPlanText: string }
+  | { kind: "edit"; eventId: string; event: EventFormData };
 
 export type CreateState =
   | { kind: "idle" }
@@ -23,6 +24,7 @@ export interface UseEventFormReturn {
   createState: CreateState;
   openManualForm: () => void;
   openSuggestionForm: (suggestion: Suggestion, parsedPlan: ParsedPlan, originalPlanText: string) => void;
+  openEditForm: (eventId: string, event: EventFormData) => void;
   handleFormCancel: () => void;
   handleFormSubmit: (data: EventFormData) => Promise<void>;
 }
@@ -51,6 +53,11 @@ export function useEventForm(deps: UseEventFormDeps): UseEventFormReturn {
     });
   }, []);
 
+  const openEditForm = useCallback((eventId: string, event: EventFormData) => {
+    setCreateState({ kind: "idle" });
+    setEventForm({ kind: "edit", eventId, event });
+  }, []);
+
   const handleFormCancel = useCallback(() => {
     if (createState.kind === "submitting") return;
     setEventForm({ kind: "closed" });
@@ -65,14 +72,21 @@ export function useEventForm(deps: UseEventFormDeps): UseEventFormReturn {
         title: data.title,
         description: data.description,
         location: data.location,
+        type: data.type,
       };
+
+      const isEdit = eventForm.kind === "edit";
+      const url = isEdit ? `/api/events/${eventForm.eventId}` : "/api/events";
+      const method = isEdit ? "PATCH" : "POST";
+
       if (eventForm.kind === "suggestion") {
         body.parsedPlan = eventForm.parsedPlan;
         body.originalPlanText = eventForm.originalPlanText;
       }
+
       try {
-        const res = await fetch("/api/events", {
-          method: "POST",
+        const res = await fetch(url, {
+          method,
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),
         });
@@ -80,7 +94,7 @@ export function useEventForm(deps: UseEventFormDeps): UseEventFormReturn {
           const resBody = (await res.json().catch(() => ({}))) as { message?: string };
           throw new Error(resBody.message ?? `HTTP ${res.status}`);
         }
-        pushToast("Событие создано", "success");
+        pushToast(isEdit ? "Событие обновлено" : "Событие создано", "success");
         setEventForm({ kind: "closed" });
         setCreateState({ kind: "idle" });
         void fetchWeek(startParam);
@@ -98,6 +112,7 @@ export function useEventForm(deps: UseEventFormDeps): UseEventFormReturn {
     createState,
     openManualForm,
     openSuggestionForm,
+    openEditForm,
     handleFormCancel,
     handleFormSubmit,
   };

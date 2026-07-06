@@ -5,6 +5,7 @@ import {
   getParts,
   dateFromParts,
 } from "@calendar-planner/shared";
+import type { EventType } from "@calendar-planner/shared";
 import styles from "./EventForm.module.css";
 
 export interface EventFormData {
@@ -13,6 +14,7 @@ export interface EventFormData {
   end: string;
   description: string;
   location: string;
+  type: EventType;
 }
 
 export interface EventFormProps {
@@ -21,6 +23,7 @@ export interface EventFormProps {
   initialEnd?: string;
   initialDescription?: string;
   initialLocation?: string;
+  initialType?: EventType;
   submitLabel?: string;
   onSubmit: (data: EventFormData) => void;
   onCancel: () => void;
@@ -41,6 +44,8 @@ const COMMON_TIME_ZONES = [
   "America/Los_Angeles",
   "Pacific/Auckland",
 ];
+
+const EVENT_TYPES: EventType[] = ["focus", "meeting", "personal", "errand"];
 
 function formatDateInput(iso: string, timeZone: string): string {
   const parts = getParts(timeZone, new Date(iso));
@@ -97,6 +102,7 @@ export function EventForm({
   initialEnd,
   initialDescription = "",
   initialLocation = "",
+  initialType = "meeting",
   submitLabel = "Create event",
   onSubmit,
   onCancel,
@@ -110,14 +116,16 @@ export function EventForm({
   const [title, setTitle] = useState(initialTitle);
   const [description, setDescription] = useState(initialDescription);
   const [location, setLocation] = useState(initialLocation);
+  const [type, setType] = useState<EventType>(initialType);
 
   useEffect(() => {
     setTitle(initialTitle);
     setDescription(initialDescription);
     setLocation(initialLocation);
+    setType(initialType);
     if (initialStart) setStart(initialStart);
     if (initialEnd) setEnd(initialEnd);
-  }, [initialTitle, initialStart, initialEnd, initialDescription, initialLocation]);
+  }, [initialTitle, initialStart, initialEnd, initialDescription, initialLocation, initialType]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -173,6 +181,7 @@ export function EventForm({
       end,
       description,
       location,
+      type,
     });
   };
 
@@ -199,6 +208,22 @@ export function EventForm({
               required
               disabled={submitting}
             />
+          </label>
+
+          <label className={styles["field"]}>
+            <span className={styles["label"]}>Type</span>
+            <select
+              value={type}
+              onChange={(e) => setType(e.target.value as EventType)}
+              className={styles["input"]}
+              disabled={submitting}
+            >
+              {EVENT_TYPES.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </select>
           </label>
 
           <div className={styles["row"]}>

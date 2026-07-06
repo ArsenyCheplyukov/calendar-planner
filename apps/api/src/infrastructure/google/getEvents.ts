@@ -1,5 +1,7 @@
 import type { calendar_v3 } from "googleapis";
+import type { EventType } from "@calendar-planner/shared";
 import { buildGoogleCalendarClient } from "./client.js";
+import { mapGoogleEventType } from "../../domain/event-type.js";
 
 export interface GoogleEventsClient {
   calendarList: {
@@ -22,6 +24,7 @@ export interface ListedEvent {
   start: string; // ISO datetime OR YYYY-MM-DD for all-day
   end: string;
   allDay: boolean;
+  type: EventType;
 }
 
 interface RawItem {
@@ -29,6 +32,11 @@ interface RawItem {
   calendarId?: string;
   summary?: string;
   description?: string;
+  eventType?: string;
+  extendedProperties?: {
+    private?: Record<string, string>;
+    shared?: Record<string, string>;
+  };
   start?: { dateTime?: string; date?: string };
   end?: { dateTime?: string; date?: string };
 }
@@ -43,6 +51,7 @@ function normalizeItem(item: RawItem): ListedEvent | null {
   const start = startDateTime ?? startDate;
   const end = endDateTime ?? endDate;
   if (!start || !end) return null;
+  const privateType = item.extendedProperties?.private?.["eventType"];
   return {
     id: item.id,
     calendarId: item.calendarId ?? "",
@@ -51,6 +60,7 @@ function normalizeItem(item: RawItem): ListedEvent | null {
     start,
     end,
     allDay,
+    type: mapGoogleEventType(item.eventType, privateType),
   };
 }
 

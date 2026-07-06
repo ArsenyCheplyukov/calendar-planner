@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import type { EventType } from "@calendar-planner/shared";
 import { Button } from "../Button/index.js";
 import { formatTime, formatDateLong } from "../../lib/time-format.js";
 import styles from "./EventsPopover.module.css";
@@ -9,6 +10,9 @@ export interface EventItem {
   start: string;
   end: string;
   allDay?: boolean;
+  type: EventType;
+  description?: string;
+  location?: string;
 }
 
 export interface EventsPopoverProps {
@@ -18,9 +22,9 @@ export interface EventsPopoverProps {
   loading: boolean;
   error?: string | null;
   onClose: () => void;
+  onEdit?: (event: EventItem) => void;
+  onDelete?: (event: EventItem) => void;
 }
-
-
 
 export function EventsPopover({
   windowStart,
@@ -29,6 +33,8 @@ export function EventsPopover({
   loading,
   error,
   onClose,
+  onEdit,
+  onDelete,
 }: EventsPopoverProps) {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -76,10 +82,30 @@ export function EventsPopover({
           <div className={styles["list"]}>
             {events.map((e) => (
               <div key={e.id} className={styles["item"]}>
-                <span className={styles["itemTitle"]}>{e.summary}</span>
-                <span className={styles["itemTime"]}>
-                  {e.allDay ? "весь день" : `${formatTime(e.start)}–${formatTime(e.end)}`}
-                </span>
+                <div className={styles["itemRow"]}>
+                  <span className={styles["itemTitle"]}>{e.summary}</span>
+                  <span className={styles["itemTime"]}>
+                    {e.allDay ? "весь день" : `${formatTime(e.start)}–${formatTime(e.end)}`}
+                  </span>
+                </div>
+                <div className={styles["itemActions"]}>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => onEdit?.(e)}
+                    data-testid="edit-event-button"
+                  >
+                    Edit
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => onDelete?.(e)}
+                    data-testid="delete-event-button"
+                  >
+                    Delete
+                  </Button>
+                </div>
               </div>
             ))}
           </div>

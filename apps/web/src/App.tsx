@@ -5,7 +5,7 @@ import { PlanInput } from "./components/PlanInput/index.js";
 import { WeekView } from "./components/WeekView/index.js";
 import { EventForm } from "./components/EventForm/index.js";
 import { PlanCandidates } from "./components/PlanCandidates/index.js";
-import { EventsPopover } from "./components/EventsPopover/index.js";
+import { EventsPopover, type EventItem } from "./components/EventsPopover/index.js";
 import type { WeekViewProposal } from "./components/WeekView/WeekView.js";
 import {
   useWeekNavigation,
@@ -29,9 +29,43 @@ export function App() {
     planTextareaRef.current?.focus();
   }, [planState, setPlanText]);
   const { toasts, pushToast } = useToasts();
-  const { eventForm, createState, openManualForm, openSuggestionForm, handleFormCancel, handleFormSubmit } =
+  const { eventForm, createState, openManualForm, openSuggestionForm, openEditForm, handleFormCancel, handleFormSubmit } =
     useEventForm({ fetchWeek, startParam, pushToast });
   const { eventsState, handleBlockClick, handlePopoverClose } = useEventsPopover();
+
+  const handleEventEdit = useCallback(
+    (event: EventItem) => {
+      handlePopoverClose();
+      openEditForm(event.id, {
+        title: event.summary,
+        start: event.start,
+        end: event.end,
+        description: event.description ?? "",
+        location: event.location ?? "",
+        type: event.type,
+      });
+    },
+    [handlePopoverClose, openEditForm],
+  );
+
+  const handleEventDelete = useCallback(
+    async (event: EventItem) => {
+      try {
+        const res = await fetch(`/api/events/${event.id}`, { method: "DELETE" });
+        if (!res.ok) {
+          const body = (await res.json().catch(() => ({}))) as { message?: string };
+          throw new Error(body.message ?? `HTTP ${res.status}`);
+        }
+        pushToast("Событие удалено", "success");
+        handlePopoverClose();
+        void fetchWeek(startParam);
+      } catch (e) {
+        const message = e instanceof Error ? e.message : String(e);
+        pushToast(`Не удалось удалить: ${message}`, "error");
+      }
+    },
+    [fetchWeek, handlePopoverClose, pushToast, startParam],
+  );
 
   const handleCandidateApprove = useCallback(
     (candidate: PlanCandidate) => {
@@ -58,8 +92,20 @@ export function App() {
           initialEnd: eventForm.suggestion.end,
           initialDescription: eventForm.originalPlanText,
           initialLocation: "",
+          initialType: eventForm.parsedPlan.type,
         }
-      : {};
+      : eventForm.kind === "edit"
+        ? {
+            initialTitle: eventForm.event.title,
+            initialStart: eventForm.event.start,
+            initialEnd: eventForm.event.end,
+            initialDescription: eventForm.event.description,
+            initialLocation: eventForm.event.location,
+            initialType: eventForm.event.type,
+          }
+        : {};
+
+  const submitLabel = eventForm.kind === "edit" ? "Save changes" : "Create event";
 
   return (
     <main className={styles["app"]} data-testid="app">
@@ -142,7 +188,7 @@ export function App() {
       {eventForm.kind !== "closed" && (
         <EventForm
           {...formInitialValues}
-          submitLabel="Create event"
+          submitLabel={submitLabel}
           onSubmit={handleFormSubmit}
           onCancel={handleFormCancel}
           submitting={createState.kind === "submitting"}
@@ -158,6 +204,8 @@ export function App() {
           loading={eventsState.kind === "loading"}
           error={eventsState.kind === "error" ? eventsState.message : null}
           onClose={handlePopoverClose}
+          onEdit={handleEventEdit}
+          onDelete={handleEventDelete}
         />
       )}
 

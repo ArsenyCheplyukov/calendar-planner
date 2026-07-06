@@ -80,6 +80,7 @@ describe("getEvents", () => {
       start: "2026-07-08T09:00:00Z",
       end: "2026-07-08T09:15:00Z",
       allDay: false,
+      type: "meeting",
     });
     expect(result[1]?.summary).toBe("Deep work");
   });
@@ -92,6 +93,67 @@ describe("getEvents", () => {
       client,
     );
     expect(result).toEqual([]);
+  });
+
+  it("maps Google eventType to a domain type", async () => {
+    const list = vi.fn().mockResolvedValue({
+      data: {
+        items: [
+          {
+            id: "evt-focus",
+            calendarId: "primary",
+            summary: "Focus block",
+            eventType: "focusTime",
+            start: { dateTime: "2026-07-08T09:00:00Z" },
+            end: { dateTime: "2026-07-08T10:00:00Z" },
+          },
+        ],
+      },
+    });
+    const calendarListList = vi.fn().mockResolvedValue({
+      data: { items: [{ id: "primary" }] },
+    });
+
+    const client = makeClient({ list, calendarListList });
+    const result = await getEvents(
+      "2026-07-06T00:00:00.000Z",
+      "2026-07-12T23:59:59.999Z",
+      client,
+    );
+
+    expect(result).toHaveLength(1);
+    expect(result[0]?.type).toBe("focus");
+  });
+
+  it("prefers a privately stored domain type over Google eventType", async () => {
+    const list = vi.fn().mockResolvedValue({
+      data: {
+        items: [
+          {
+            id: "evt-private",
+            calendarId: "primary",
+            summary: "Errand",
+            eventType: "default",
+            extendedProperties: { private: { eventType: "errand" } },
+            start: { dateTime: "2026-07-08T09:00:00Z" },
+            end: { dateTime: "2026-07-08T10:00:00Z" },
+          },
+        ],
+      },
+    });
+    const calendarListList = vi.fn().mockResolvedValue({
+      data: { items: [{ id: "primary" }] },
+    });
+
+    const client = makeClient({ list, calendarListList });
+    const result = await getEvents(
+      "2026-07-06T00:00:00.000Z",
+      "2026-07-12T23:59:59.999Z",
+      client,
+    );
+
+    expect(result).toHaveLength(1);
+    expect(result[0]?.type).toBe("errand");
   });
 
   it("marks allDay events correctly", async () => {

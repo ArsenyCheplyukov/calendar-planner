@@ -1,7 +1,9 @@
 import type { FastifyInstance } from "fastify";
-import type { ParsedPlan, Slot } from "@calendar-planner/shared";
+import type { EventType, ParsedPlan, Slot } from "@calendar-planner/shared";
 import {
   createEvent,
+  deleteEvent,
+  updateEvent,
   type GoogleCalendarClient,
 } from "../infrastructure/google/events.js";
 import {
@@ -27,6 +29,15 @@ interface CreateEventBody {
   title?: string;
   description?: string;
   location?: string;
+  type?: EventType;
+}
+
+interface UpdateEventBody {
+  slot?: Partial<Slot>;
+  title?: string;
+  description?: string;
+  location?: string;
+  type?: EventType;
 }
 
 export async function eventsRoute(
@@ -34,7 +45,7 @@ export async function eventsRoute(
   opts: EventsRouteOptions,
 ): Promise<void> {
   app.post<{ Body: CreateEventBody }>("/api/events", async (req, reply) => {
-    const { slot, parsedPlan, originalPlanText, title, description, location } = req.body ?? {};
+    const { slot, parsedPlan, originalPlanText, title, description, location, type } = req.body ?? {};
 
     if (!slot?.start || !slot?.end) {
       return reply.status(400).send({
@@ -72,6 +83,7 @@ export async function eventsRoute(
           location,
           start: slot.start,
           end: slot.end,
+          type,
         },
         req.accessToken,
         client,
@@ -113,6 +125,77 @@ export async function eventsRoute(
         const client = listFactory(req.accessToken) as GoogleEventsClient;
         const events: ListedEvent[] = await getEvents(from, to, client);
         return { events };
+      } catch (e) {
+        const message = e instanceof Error ? e.message : String(e);
+        return sendRouteError(upstreamError(message), reply);
+      }
+    },
+  );
+
+  app.patch<{ Params: { id: string }; Body: UpdateEventBody }>(
+    "/api/events/:id",
+    async (req, reply) => {
+      const eventId = req.params.id;
+      const { slot, title, description, location, type } = req.body ?? {};
+
+      if (!slot?.start || !slot?.end) {
+        return reply.status(400).send({
+          error: "bad_request",
+          message: "`slot` must include start and end",
+        });
+      }
+
+      if (!title) {
+        return reply.status(400).send({
+          error: "bad_request",
+          message: "`title` is required",
+        });
+      }
+
+      if (!req.accessToken) {
+        return reply.status(401).send({
+          error: "unauthenticated",
+          message: "Run `pnpm auth` to bootstrap credentials.",
+        });
+      }
+
+      try {
+        const client = opts.eventsClientFactory(req.accessToken);
+        const event = await updateEvent(
+          eventId,
+          {
+            summary: title,
+            description,
+            location,
+            start: slot.start,
+            end: slot.end,
+            type,
+          },
+          req.accessToken,
+          client,
+        );
+        return { event };
+      } catch (e) {
+        const message = e instanceof Error ? e.message : String(e);
+        return sendRouteError(upstreamError(message), reply);
+      }
+    },
+  );
+
+  app.delete<{ Params: { id: string } }>(
+    "/api/events/:id",
+    async (req, reply) => {
+      if (!req.accessToken) {
+        return reply.status(401).send({
+          error: "unauthenticated",
+          message: "Run `pnpm auth` to bootstrap credentials.",
+        });
+      }
+
+      try {
+        const client = opts.eventsClientFactory(req.accessToken);
+        await deleteEvent(req.params.id, req.accessToken, client);
+        return { id: req.params.id };
       } catch (e) {
         const message = e instanceof Error ? e.message : String(e);
         return sendRouteError(upstreamError(message), reply);

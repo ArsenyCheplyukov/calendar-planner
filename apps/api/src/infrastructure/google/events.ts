@@ -1,4 +1,5 @@
 import type { calendar_v3 } from "googleapis";
+import type { EventType } from "@calendar-planner/shared";
 import { buildGoogleCalendarClient } from "./client.js";
 
 export interface GoogleCalendarClient {
@@ -6,6 +7,12 @@ export interface GoogleCalendarClient {
     insert: (
       params: calendar_v3.Params$Resource$Events$Insert,
     ) => Promise<{ data: calendar_v3.Schema$Event }>;
+    update: (
+      params: calendar_v3.Params$Resource$Events$Update,
+    ) => Promise<{ data: calendar_v3.Schema$Event }>;
+    delete: (
+      params: calendar_v3.Params$Resource$Events$Delete,
+    ) => Promise<{ data: void }>;
   };
 }
 
@@ -15,6 +22,23 @@ export interface CreateEventInput {
   location?: string;
   start: string; // ISO datetime
   end: string;   // ISO datetime
+  type?: EventType;
+}
+
+export interface UpdateEventInput {
+  summary: string;
+  description?: string;
+  location?: string;
+  start: string; // ISO datetime
+  end: string;   // ISO datetime
+  type?: EventType;
+}
+
+function eventTypeExtendedProperties(type?: EventType):
+  | { private: { eventType: EventType } }
+  | undefined {
+  if (!type) return undefined;
+  return { private: { eventType: type } };
 }
 
 export interface CreatedEvent {
@@ -23,6 +47,8 @@ export interface CreatedEvent {
   start?: { dateTime?: string };
   end?: { dateTime?: string };
 }
+
+export type UpdatedEvent = CreatedEvent;
 
 /**
  * Create a new event in the Owner's primary Google Calendar.
@@ -44,6 +70,7 @@ export async function createEvent(
       end: { dateTime: input.end },
       transparency: "opaque",
       reminders: { useDefault: true },
+      ...(input.type && { extendedProperties: eventTypeExtendedProperties(input.type) }),
     },
   });
 
@@ -54,6 +81,55 @@ export async function createEvent(
     start: ev.start ? { dateTime: ev.start.dateTime ?? undefined } : undefined,
     end: ev.end ? { dateTime: ev.end.dateTime ?? undefined } : undefined,
   };
+}
+
+/**
+ * Update an existing event in the Owner's primary Google Calendar.
+ */
+export async function updateEvent(
+  eventId: string,
+  input: UpdateEventInput,
+  accessToken: string,
+  client: GoogleCalendarClient,
+): Promise<UpdatedEvent> {
+  const res = await client.events.update({
+    calendarId: "primary",
+    eventId,
+    sendUpdates: "none",
+    requestBody: {
+      summary: input.summary,
+      ...(input.description && { description: input.description }),
+      ...(input.location && { location: input.location }),
+      start: { dateTime: input.start },
+      end: { dateTime: input.end },
+      transparency: "opaque",
+      reminders: { useDefault: true },
+      ...(input.type && { extendedProperties: eventTypeExtendedProperties(input.type) }),
+    },
+  });
+
+  const ev = res.data;
+  return {
+    id: ev.id ?? eventId,
+    summary: ev.summary ?? undefined,
+    start: ev.start ? { dateTime: ev.start.dateTime ?? undefined } : undefined,
+    end: ev.end ? { dateTime: ev.end.dateTime ?? undefined } : undefined,
+  };
+}
+
+/**
+ * Hard-delete an event from the Owner's primary Google Calendar.
+ */
+export async function deleteEvent(
+  eventId: string,
+  accessToken: string,
+  client: GoogleCalendarClient,
+): Promise<void> {
+  await client.events.delete({
+    calendarId: "primary",
+    eventId,
+    sendUpdates: "none",
+  });
 }
 
 /** Build an authenticated googleapis calendar client from an access token. */
