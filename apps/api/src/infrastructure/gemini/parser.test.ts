@@ -154,6 +154,31 @@ describe("parsePlan", () => {
 });
 
 describe("parsePlanCandidates", () => {
+  it("asks Gemini for at least 2 candidates so ambiguous plans get alternatives", async () => {
+    const secondPlan: ParsedPlan = {
+      title: "Встреча с клиентом",
+      durationMinutes: 30,
+      bufferBeforeMinutes: null,
+      bufferAfterMinutes: null,
+      type: "meeting",
+      deadline: null,
+      hint: { window: { dayOfWeek: "wed" } },
+    };
+    const fetchMock = vi.fn().mockResolvedValue(
+      buildGeminiResponse({ candidates: [VALID_PLAN, secondPlan] }),
+    );
+
+    await parsePlanCandidates("подготовить презентацию", {
+      apiKey: "test-key",
+      fetchImpl: fetchMock as unknown as typeof fetch,
+    });
+
+    const [, init] = fetchMock.mock.calls[0]!;
+    const body = JSON.parse(init.body as string);
+    const instruction = body.systemInstruction.parts[0].text as string;
+    expect(instruction).toMatch(/от\s*2\s*до\s*10|минимум\s*2|хотя\s*бы\s*2|не\s*менее\s*2/i);
+  });
+
   it("returns ranked candidates from a multi-candidate Gemini response", async () => {
     const secondPlan: ParsedPlan = {
       title: "Встреча с клиентом",
