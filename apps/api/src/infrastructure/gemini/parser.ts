@@ -79,7 +79,6 @@ const RESPONSE_SCHEMA = {
   required: ["title", "durationMinutes", "type", "deadline", "hint"],
 } as const;
 
-const MIN_CANDIDATES = 2;
 const MAX_CANDIDATES = 10;
 
 const CANDIDATES_RESPONSE_SCHEMA = {
@@ -88,7 +87,6 @@ const CANDIDATES_RESPONSE_SCHEMA = {
     candidates: {
       type: "array",
       items: RESPONSE_SCHEMA,
-      minItems: MIN_CANDIDATES,
       maxItems: MAX_CANDIDATES,
     },
   },
@@ -98,7 +96,11 @@ const CANDIDATES_RESPONSE_SCHEMA = {
 function buildCandidatesSystemInstruction(today: string, timeZone: string): string {
   return `${buildSystemInstruction(today, timeZone)}
 
-Верни JSON строго по схеме с массивом candidates. Каждый элемент массива — ранжированная интерпретация плана (кандидат), отсортированная от наиболее вероятной к наименее вероятной. Включи от ${MIN_CANDIDATES} до ${MAX_CANDIDATES} кандидатов. Даже если план кажется однозначным, предложи альтернативную интерпретацию (другое время, день или подход).`;
+Верни JSON строго по схеме с массивом candidates. Каждый элемент массива — ранжированная интерпретация плана (кандидат), отсортированная от наиболее вероятной к наименее вероятной.
+
+- Если план однозначен (конкретная дата и время), верни ровно 1 кандидата.
+- Если план неоднозначен по времени (например, "после 16:00", "до обеда", "вечером", "около 15:00"), верни 2–${MAX_CANDIDATES} кандидатов с разными конкретными временными окнами, расположенными через 30–60 минут друг от друга.
+- Каждый кандидат должен быть полноценной интерпретацией плана, а не копией первого.`;
 }
 
 export interface ParsePlanOptions {
