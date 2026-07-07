@@ -4,8 +4,9 @@ import {
   getLocalTimeZone,
   getParts,
   dateFromParts,
+  hasConflictInBusyMap,
 } from "@calendar-planner/shared";
-import type { EventType } from "@calendar-planner/shared";
+import type { EventType, BusyMap } from "@calendar-planner/shared";
 import styles from "./EventForm.module.css";
 
 export interface EventFormData {
@@ -25,6 +26,9 @@ export interface EventFormProps {
   initialLocation?: string;
   initialType?: EventType;
   submitLabel?: string;
+  busy?: BusyMap;
+  bufferMinutes?: number;
+  excludeInterval?: { start: string; end: string };
   onSubmit: (data: EventFormData) => void;
   onCancel: () => void;
   submitting?: boolean;
@@ -96,6 +100,23 @@ function defaultEnd(timeZone: string): string {
   return new Date(start.getTime() + 60 * 60 * 1000).toISOString();
 }
 
+function filterExcludedInterval(
+  busy: BusyMap,
+  exclude?: { start: string; end: string },
+): BusyMap {
+  if (!exclude) return busy;
+  const out: BusyMap = {};
+  for (const [day, intervals] of Object.entries(busy)) {
+    const filtered = intervals.filter(
+      (i) => i.start !== exclude.start || i.end !== exclude.end,
+    );
+    if (filtered.length > 0) {
+      out[day] = filtered;
+    }
+  }
+  return out;
+}
+
 export function EventForm({
   initialTitle = "",
   initialStart,
@@ -104,6 +125,9 @@ export function EventForm({
   initialLocation = "",
   initialType = "meeting",
   submitLabel = "Create event",
+  busy,
+  bufferMinutes = 0,
+  excludeInterval,
   onSubmit,
   onCancel,
   submitting = false,
@@ -117,6 +141,16 @@ export function EventForm({
   const [description, setDescription] = useState(initialDescription);
   const [location, setLocation] = useState(initialLocation);
   const [type, setType] = useState<EventType>(initialType);
+
+  const conflict = useMemo(() => {
+    if (!busy) return false;
+    const effectiveBusy = filterExcludedInterval(busy, excludeInterval);
+    return hasConflictInBusyMap(
+      { start, end },
+      effectiveBusy,
+      bufferMinutes,
+    );
+  }, [busy, bufferMinutes, end, excludeInterval, start]);
 
   useEffect(() => {
     setTitle(initialTitle);
@@ -313,6 +347,12 @@ export function EventForm({
               disabled={submitting}
             />
           </label>
+
+          {conflict && (
+            <div className={styles["warning"]} role="status" data-testid="conflict-warning">
+              This time overlaps with a busy block. You can still create the event.
+            </div>
+          )}
 
           {error && (
             <div className={styles["error"]} role="alert">

@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Suggestions, type SuggestionsList } from "./Suggestions.js";
+import type { BusyMap } from "@calendar-planner/shared";
 
 const sample: SuggestionsList = [
   {
@@ -70,5 +71,43 @@ describe("Suggestions", () => {
   it("renders an empty state when there are no suggestions", () => {
     render(<Suggestions suggestions={[]} onApprove={() => {}} onSelect={() => {}} />);
     expect(screen.getByTestId("suggestions-empty")).toBeInTheDocument();
+  });
+
+  it("renders a conflict badge on suggestions that overlap a busy block", () => {
+    const busy: BusyMap = {
+      "2026-07-08": [{ start: "2026-07-08T09:30:00.000Z", end: "2026-07-08T10:30:00.000Z" }],
+    };
+    render(<Suggestions suggestions={sample} busy={busy} bufferMinutes={0} onApprove={() => {}} onSelect={() => {}} />);
+    const cards = screen.getAllByTestId("suggestion-card");
+    expect(within(cards[0]!).getByTestId("conflict-badge")).toHaveTextContent(/conflicts/i);
+    expect(within(cards[1]!).queryByTestId("conflict-badge")).not.toBeInTheDocument();
+  });
+
+  it("does not render a conflict badge when the slot is outside the buffered busy interval", () => {
+    const busy: BusyMap = {
+      "2026-07-08": [{ start: "2026-07-08T07:00:00.000Z", end: "2026-07-08T08:30:00.000Z" }],
+    };
+    render(<Suggestions suggestions={[sample[0]!]} busy={busy} bufferMinutes={15} onApprove={() => {}} onSelect={() => {}} />);
+    const cards = screen.getAllByTestId("suggestion-card");
+    expect(within(cards[0]!).queryByTestId("conflict-badge")).not.toBeInTheDocument();
+    expect(within(cards[0]!).getByTestId("suggestion-badge")).toBeInTheDocument();
+  });
+
+  it("renders a 'No clean slots found' banner when every suggestion conflicts", () => {
+    const busy: BusyMap = {
+      "2026-07-08": [{ start: "2026-07-08T09:00:00.000Z", end: "2026-07-08T10:00:00.000Z" }],
+      "2026-07-09": [{ start: "2026-07-09T10:00:00.000Z", end: "2026-07-09T11:00:00.000Z" }],
+      "2026-07-10": [{ start: "2026-07-10T11:00:00.000Z", end: "2026-07-10T12:00:00.000Z" }],
+    };
+    render(<Suggestions suggestions={sample} busy={busy} bufferMinutes={0} onApprove={() => {}} onSelect={() => {}} />);
+    expect(screen.getByTestId("no-clean-slots")).toHaveTextContent(/no clean slots found/i);
+  });
+
+  it("does not render a 'No clean slots found' banner when at least one suggestion is clean", () => {
+    const busy: BusyMap = {
+      "2026-07-08": [{ start: "2026-07-08T09:00:00.000Z", end: "2026-07-08T10:00:00.000Z" }],
+    };
+    render(<Suggestions suggestions={sample} busy={busy} bufferMinutes={0} onApprove={() => {}} onSelect={() => {}} />);
+    expect(screen.queryByTestId("no-clean-slots")).not.toBeInTheDocument();
   });
 });

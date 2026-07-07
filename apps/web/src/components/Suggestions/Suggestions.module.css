@@ -38,6 +38,21 @@
   white-space: nowrap;
 }
 
+.badge-conflict {
+  background: var(--color-warning);
+  color: var(--color-warning-fg);
+}
+
+.no-clean {
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-warning);
+  color: var(--color-warning-fg);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  text-align: center;
+}
+
 .time {
   font-family: var(--font-mono);
   font-size: var(--font-size-base);

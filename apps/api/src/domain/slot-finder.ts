@@ -7,6 +7,7 @@ import {
   addDaysInTimeZone,
   getWeekday,
   timeOfDayMinutesInTimeZone,
+  hasConflict,
 } from "@calendar-planner/shared";
 
 export interface WorkingWindow {
@@ -46,23 +47,6 @@ function overlapsBlackout(
     const bStart = minutesFromHHMM(blackout.start);
     const bEnd = minutesFromHHMM(blackout.end);
     if (startMin < bEnd && endMin > bStart) {
-      return true;
-    }
-  }
-  return false;
-}
-
-function overlapsWithBuffer(
-  start: Date,
-  end: Date,
-  busy: Array<{ start: string; end: string }>,
-  bufferMin: number,
-): boolean {
-  const bufferMs = bufferMin * 60 * 1000;
-  for (const b of busy) {
-    const bStart = new Date(b.start).getTime() - bufferMs;
-    const bEnd = new Date(b.end).getTime() + bufferMs;
-    if (start.getTime() < bEnd && end.getTime() > bStart) {
       return true;
     }
   }
@@ -124,7 +108,7 @@ export function findSlots(
       const blockedEnd = new Date(candidateEnd.getTime() + eventBufferAfterMs);
 
       if (
-        !overlapsWithBuffer(blockedStart, blockedEnd, dayBusy, bufferMinutes) &&
+        !hasConflict({ start: blockedStart, end: blockedEnd }, dayBusy, bufferMinutes) &&
         !overlapsBlackout(blockedStart, blockedEnd, blackouts, timeZone)
       ) {
         found = { start: candidateStart.toISOString(), end: candidateEnd.toISOString() };

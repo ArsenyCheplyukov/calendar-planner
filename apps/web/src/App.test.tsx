@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { render, screen, waitFor, fireEvent, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { App } from "./App.js";
+import type { BusyMap } from "@calendar-planner/shared";
 
 describe("App event creation flow", () => {
   beforeEach(() => {
@@ -15,6 +16,8 @@ describe("App event creation flow", () => {
   function buildMock(opts: {
     planResponse?: { parsed?: unknown; suggestions?: unknown[] };
     createResponse?: { event?: unknown; status?: number; body?: unknown };
+    weekBusy?: BusyMap;
+    bufferMinutes?: number;
   } = {}) {
     const plan = opts.planResponse ?? {
       parsed: {
@@ -33,14 +36,24 @@ describe("App event creation flow", () => {
         },
       ],
     };
+    const busy = opts.weekBusy ?? {};
+    const bufferMinutes = opts.bufferMinutes ?? 15;
     return vi.fn().mockImplementation((url: string, init?: RequestInit) => {
       if (url.includes("/api/week")) {
         return Promise.resolve(
           new Response(
             JSON.stringify({
               week: { start: "2026-07-06T00:00:00.000Z", end: "2026-07-12T23:59:59.999Z" },
-              busy: {},
+              busy,
             }),
+            { status: 200, headers: { "Content-Type": "application/json" } },
+          ),
+        );
+      }
+      if (url.includes("/api/preferences")) {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({ bufferMinutes }),
             { status: 200, headers: { "Content-Type": "application/json" } },
           ),
         );
@@ -153,6 +166,75 @@ describe("App event creation flow", () => {
     expect(body.title).toBe("Ручное событие");
     expect(body.parsedPlan).toBeUndefined();
     expect(body.originalPlanText).toBeUndefined();
+  });
+
+  it("shows a soft conflict warning in the event form when the slot overlaps a busy block", async () => {
+    const user = userEvent.setup();
+    const busy: BusyMap = {
+      "2026-07-08": [{ start: "2026-07-08T08:00:00.000Z", end: "2026-07-08T09:30:00.000Z" }],
+    };
+    vi.stubGlobal("fetch", buildMock({ weekBusy: busy, bufferMinutes: 0 }));
+
+    render(<App />);
+    await waitFor(() => screen.getByTestId("week-view"));
+
+    const textarea = screen.getByRole("textbox", { name: /план/i });
+    await user.type(textarea, "подготовить презентацию");
+    await user.click(screen.getByRole("button", { name: /suggest/i }));
+
+    await waitFor(() => screen.getByTestId("plan-candidates"));
+    await user.click(screen.getAllByRole("button", { name: /add event/i })[0]!);
+
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByTestId("conflict-warning")).toHaveTextContent(/overlaps with a busy block/i);
+  });
+
+  it("renders a 'No clean slots found' banner when every active candidate suggestion conflicts", async () => {
+    const user = userEvent.setup();
+    const busy: BusyMap = {
+      "2026-07-08": [{ start: "2026-07-08T08:00:00.000Z", end: "2026-07-08T11:00:00.000Z" }],
+      "2026-07-09": [{ start: "2026-07-09T08:00:00.000Z", end: "2026-07-09T11:00:00.000Z" }],
+    };
+    vi.stubGlobal(
+      "fetch",
+      buildMock({
+        weekBusy: busy,
+        bufferMinutes: 0,
+        planResponse: {
+          parsed: {
+            title: "Подготовить презентацию",
+            durationMinutes: 60,
+            type: "focus",
+            deadline: null,
+            hint: null,
+          },
+          suggestions: [
+            {
+              start: "2026-07-08T09:00:00.000Z",
+              end: "2026-07-08T10:00:00.000Z",
+              score: 0.8,
+              reason: "ср 09:00–10:00, 60 мин (фокус)",
+            },
+            {
+              start: "2026-07-09T09:00:00.000Z",
+              end: "2026-07-09T10:00:00.000Z",
+              score: 0.7,
+              reason: "чт 09:00–10:00, 60 мин (фокус)",
+            },
+          ],
+        },
+      }),
+    );
+
+    render(<App />);
+    await waitFor(() => screen.getByTestId("week-view"));
+
+    const textarea = screen.getByRole("textbox", { name: /план/i });
+    await user.type(textarea, "подготовить презентацию");
+    await user.click(screen.getByRole("button", { name: /suggest/i }));
+
+    await waitFor(() => screen.getByTestId("suggestions-list"));
+    expect(screen.getByTestId("no-clean-slots")).toHaveTextContent(/no clean slots found/i);
   });
 });
 

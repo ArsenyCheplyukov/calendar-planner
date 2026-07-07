@@ -3,3 +3,4 @@ export { usePlanSubmission, type UsePlanSubmissionReturn, type PlanState } from 
 export { useEventForm, type UseEventFormReturn, type UseEventFormDeps, type EventFormState, type CreateState } from "./useEventForm.js";
 export { useToasts, type UseToastsReturn, type Toast } from "./useToasts.js";
 export { useEventsPopover, type UseEventsPopoverReturn, type EventsPopoverState } from "./useEventsPopover.js";
+export { usePreferences, type PreferencesState } from "./usePreferences.js";

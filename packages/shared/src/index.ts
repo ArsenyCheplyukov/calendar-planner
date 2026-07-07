@@ -117,4 +117,5 @@ export const DEFAULT_PREFERENCES: Preferences = {
   timeZone: "UTC",
 };
 
+export * from "./conflict.js";
 export * from "./time-zone.js";

@@ -1,10 +1,12 @@
-import { useCallback, useRef } from "react";
-import type { PlanCandidate } from "@calendar-planner/shared";
+import { useCallback, useMemo, useRef } from "react";
+import type { PlanCandidate, Suggestion } from "@calendar-planner/shared";
+import { DEFAULT_PREFERENCES } from "@calendar-planner/shared";
 import { Button } from "./components/Button/index.js";
 import { PlanInput } from "./components/PlanInput/index.js";
 import { WeekView } from "./components/WeekView/index.js";
 import { EventForm } from "./components/EventForm/index.js";
 import { PlanCandidates } from "./components/PlanCandidates/index.js";
+import { Suggestions } from "./components/Suggestions/index.js";
 import { EventsPopover, type EventItem } from "./components/EventsPopover/index.js";
 import type { WeekViewProposal } from "./components/WeekView/WeekView.js";
 import {
@@ -13,6 +15,7 @@ import {
   useEventForm,
   useToasts,
   useEventsPopover,
+  usePreferences,
 } from "./hooks/index.js";
 import styles from "./App.module.css";
 
@@ -32,6 +35,17 @@ export function App() {
   const { eventForm, createState, openManualForm, openSuggestionForm, openEditForm, handleFormCancel, handleFormSubmit } =
     useEventForm({ fetchWeek, startParam, pushToast });
   const { eventsState, handleBlockClick, handlePopoverClose } = useEventsPopover();
+
+  const preferencesState = usePreferences();
+  const bufferMinutes =
+    preferencesState.kind === "ready"
+      ? preferencesState.bufferMinutes
+      : DEFAULT_PREFERENCES.bufferMinutes;
+
+  const busyMap = useMemo(
+    () => (weekState.kind === "ready" ? weekState.data.busy : {}),
+    [weekState],
+  );
 
   const handleEventEdit = useCallback(
     (event: EventItem) => {
@@ -83,6 +97,16 @@ export function App() {
           .map((c) => ({ candidateId: c.candidateId, suggestion: c.suggestions[0], selected: c.candidateId === planState.selectedCandidateId }))
           .filter((p): p is WeekViewProposal => !!p.suggestion)
       : [];
+
+  const activeCandidateSuggestions: Suggestion[] =
+    planState.kind === "ready"
+      ? planState.candidates.find((c) => c.candidateId === planState.selectedCandidateId)?.suggestions ?? []
+      : [];
+
+  const formExcludeInterval =
+    eventForm.kind === "edit"
+      ? { start: eventForm.event.start, end: eventForm.event.end }
+      : undefined;
 
   const formInitialValues =
     eventForm.kind === "suggestion"
@@ -141,6 +165,21 @@ export function App() {
               onSelect={handleCandidateSelect}
               onApprove={handleCandidateApprove}
             />
+            <div style={{ marginTop: "var(--space-3)" }}>
+              <Suggestions
+                suggestions={activeCandidateSuggestions}
+                busy={busyMap}
+                bufferMinutes={bufferMinutes}
+                onApprove={(suggestion) => {
+                  if (planState.kind !== "ready") return;
+                  const candidate = planState.candidates.find(
+                    (c) => c.candidateId === planState.selectedCandidateId,
+                  );
+                  if (!candidate) return;
+                  openSuggestionForm(suggestion, candidate.parsedPlan, planState.originalText);
+                }}
+              />
+            </div>
           </div>
         )}
 
@@ -189,6 +228,9 @@ export function App() {
         <EventForm
           {...formInitialValues}
           submitLabel={submitLabel}
+          busy={busyMap}
+          bufferMinutes={bufferMinutes}
+          excludeInterval={formExcludeInterval}
           onSubmit={handleFormSubmit}
           onCancel={handleFormCancel}
           submitting={createState.kind === "submitting"}
