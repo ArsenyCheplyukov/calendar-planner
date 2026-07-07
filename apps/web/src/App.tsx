@@ -31,9 +31,17 @@ export function App() {
     setPlanText(planState.originalText);
     planTextareaRef.current?.focus();
   }, [planState, setPlanText]);
-  const { toasts, pushToast } = useToasts();
-  const { eventForm, createState, openManualForm, openSuggestionForm, openEditForm, handleFormCancel, handleFormSubmit } =
-    useEventForm({ fetchWeek, startParam, pushToast });
+  const { toasts, pushToast, dismissToast } = useToasts();
+  const {
+    eventForm,
+    createState,
+    openManualForm,
+    openSuggestionForm,
+    openEditForm,
+    handleFormCancel,
+    handleFormSubmit,
+    cancelUndo,
+  } = useEventForm({ fetchWeek, startParam, pushToast, dismissToast });
   const { eventsState, handleBlockClick, handlePopoverClose } = useEventsPopover();
 
   const preferencesState = usePreferences();
@@ -80,6 +88,21 @@ export function App() {
     },
     [fetchWeek, handlePopoverClose, pushToast, startParam],
   );
+
+  const handlePrevWithCancel = useCallback(() => {
+    cancelUndo();
+    handlePrev();
+  }, [cancelUndo, handlePrev]);
+
+  const handleNextWithCancel = useCallback(() => {
+    cancelUndo();
+    handleNext();
+  }, [cancelUndo, handleNext]);
+
+  const handleTodayWithCancel = useCallback(() => {
+    cancelUndo();
+    handleToday();
+  }, [cancelUndo, handleToday]);
 
   const handleCandidateApprove = useCallback(
     (candidate: PlanCandidate) => {
@@ -213,9 +236,9 @@ export function App() {
                 week={weekState.data.week}
                 busy={weekState.data.busy}
                 proposals={proposals}
-                onPrev={handlePrev}
-                onNext={handleNext}
-                onToday={handleToday}
+                onPrev={handlePrevWithCancel}
+                onNext={handleNextWithCancel}
+                onToday={handleTodayWithCancel}
                 onBlockClick={handleBlockClick}
                 onProposalClick={handleCandidateSelect}
               />
@@ -264,9 +287,29 @@ export function App() {
                 color: t.tone === "success" ? "var(--color-success-fg)" : "var(--color-destructive-fg)",
                 boxShadow: "var(--shadow-2)",
                 fontSize: "var(--font-size-sm)",
+                display: "flex",
+                alignItems: "center",
+                gap: "var(--space-3)",
               }}
             >
-              {t.message}
+              <span>{t.message}</span>
+              {t.action && (
+                <button
+                  type="button"
+                  onClick={t.action.onClick}
+                  style={{
+                    background: "transparent",
+                    border: "1px solid currentColor",
+                    borderRadius: "var(--radius-sm)",
+                    color: "inherit",
+                    cursor: "pointer",
+                    fontSize: "var(--font-size-xs)",
+                    padding: "var(--space-1) var(--space-2)",
+                  }}
+                >
+                  {t.action.label}
+                </button>
+              )}
             </div>
           ))}
         </div>

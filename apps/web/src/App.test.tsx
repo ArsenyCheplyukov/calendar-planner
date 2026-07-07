@@ -16,6 +16,8 @@ describe("App event creation flow", () => {
   function buildMock(opts: {
     planResponse?: { parsed?: unknown; suggestions?: unknown[] };
     createResponse?: { event?: unknown; status?: number; body?: unknown };
+    eventsResponse?: { events?: unknown[]; status?: number; body?: unknown };
+    patchResponse?: { event?: unknown; status?: number; body?: unknown };
     weekBusy?: BusyMap;
     bufferMinutes?: number;
   } = {}) {
@@ -68,6 +70,32 @@ describe("App event creation flow", () => {
         const body =
           opts.createResponse?.body ?? {
             event: opts.createResponse?.event ?? { id: "evt-1", summary: "Created" },
+          };
+        return Promise.resolve(
+          new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } }),
+        );
+      }
+      if (url.includes("/api/events/") && init?.method === "DELETE") {
+        const id = url.split("/").pop();
+        return Promise.resolve(
+          new Response(JSON.stringify({ id }), { status: 200, headers: { "Content-Type": "application/json" } }),
+        );
+      }
+      if (url.includes("/api/events?") && (!init || init.method === undefined || init.method === "GET")) {
+        const status = opts.eventsResponse?.status ?? 200;
+        const body =
+          opts.eventsResponse?.body ?? {
+            events: opts.eventsResponse?.events ?? [],
+          };
+        return Promise.resolve(
+          new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } }),
+        );
+      }
+      if (url.includes("/api/events/") && init?.method === "PATCH") {
+        const status = opts.patchResponse?.status ?? 200;
+        const body =
+          opts.patchResponse?.body ?? {
+            event: opts.patchResponse?.event ?? { id: url.split("/").pop(), summary: "Updated" },
           };
         return Promise.resolve(
           new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } }),
@@ -131,6 +159,113 @@ describe("App event creation flow", () => {
     await user.click(within(dialog).getByRole("button", { name: /create event/i }));
 
     expect(await screen.findByTestId("create-toast")).toHaveTextContent(/создано|успешно/i);
+  });
+
+  it("offers an undo action after creating an event and deletes it on click", async () => {
+    const user = userEvent.setup();
+    const fetchMock = buildMock({ createResponse: { event: { id: "evt-new", summary: "Created" } } });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<App />);
+    await waitFor(() => screen.getByTestId("week-view"));
+
+    const textarea = screen.getByRole("textbox", { name: /план/i });
+    await user.type(textarea, "x");
+    await user.click(screen.getByRole("button", { name: /suggest/i }));
+    await waitFor(() => screen.getByTestId("plan-candidates"));
+    await user.click(screen.getAllByRole("button", { name: /add event/i })[0]!);
+
+    const dialog = await screen.findByRole("dialog");
+    await user.click(within(dialog).getByRole("button", { name: /create event/i }));
+
+    const toast = await screen.findByTestId("create-toast");
+    const undoButton = within(toast).getByRole("button", { name: /undo/i });
+    await user.click(undoButton);
+
+    await waitFor(() => {
+      const deleteCall = fetchMock.mock.calls.find(
+        (c) => String(c[0]).includes("/api/events/evt-new") && (c[1] as RequestInit | undefined)?.method === "DELETE",
+      );
+      expect(deleteCall).toBeDefined();
+    });
+  });
+
+  it("offers an undo action after editing an event and reverts it on click", async () => {
+    const user = userEvent.setup();
+    const originalEvent = {
+      id: "evt-edit",
+      summary: "Original title",
+      start: "2026-07-08T09:00:00.000Z",
+      end: "2026-07-08T10:00:00.000Z",
+      type: "meeting",
+    };
+    const busy: BusyMap = {
+      "2026-07-08": [{ start: "2026-07-08T09:00:00.000Z", end: "2026-07-08T10:00:00.000Z" }],
+    };
+    const fetchMock = buildMock({
+      weekBusy: busy,
+      eventsResponse: { events: [originalEvent] },
+      patchResponse: { event: { id: "evt-edit", summary: "Updated title" } },
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<App />);
+    await waitFor(() => screen.getByTestId("week-view"));
+
+    await user.click(screen.getAllByTestId("busy-block")[0]!);
+    await waitFor(() => screen.getByTestId("edit-event-button"));
+    await user.click(screen.getByTestId("edit-event-button"));
+
+    const dialog = await screen.findByRole("dialog");
+    const titleInput = within(dialog).getByLabelText(/title/i);
+    await user.clear(titleInput);
+    await user.type(titleInput, "Updated title");
+    await user.click(within(dialog).getByRole("button", { name: /save changes/i }));
+
+    const toast = await screen.findByTestId("create-toast");
+    const undoButton = within(toast).getByRole("button", { name: /undo/i });
+    await user.click(undoButton);
+
+    await waitFor(() => {
+      const undoPatchCall = fetchMock.mock.calls.find(
+        (c) =>
+          String(c[0]).includes("/api/events/evt-edit") &&
+          (c[1] as RequestInit | undefined)?.method === "PATCH" &&
+          ((c[1] as RequestInit).body as string).includes("Original title"),
+      );
+      expect(undoPatchCall).toBeDefined();
+    });
+  });
+
+  it("cancels the undo opportunity when navigating to another week", async () => {
+    const user = userEvent.setup();
+    const fetchMock = buildMock({ createResponse: { event: { id: "evt-nav", summary: "Created" } } });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<App />);
+    await waitFor(() => screen.getByTestId("week-view"));
+
+    const textarea = screen.getByRole("textbox", { name: /план/i });
+    await user.type(textarea, "x");
+    await user.click(screen.getByRole("button", { name: /suggest/i }));
+    await waitFor(() => screen.getByTestId("plan-candidates"));
+    await user.click(screen.getAllByRole("button", { name: /add event/i })[0]!);
+
+    const dialog = await screen.findByRole("dialog");
+    await user.click(within(dialog).getByRole("button", { name: /create event/i }));
+
+    await screen.findByTestId("create-toast");
+
+    await user.click(screen.getByRole("button", { name: /следующая/i }));
+
+    await waitFor(() => {
+      expect(screen.queryByTestId("create-toast")).not.toBeInTheDocument();
+    });
+
+    const deleteCall = fetchMock.mock.calls.find(
+      (c) => String(c[0]).includes("/api/events/evt-nav") && (c[1] as RequestInit | undefined)?.method === "DELETE",
+    );
+    expect(deleteCall).toBeUndefined();
   });
 
   it("creates an event manually through the event form", async () => {

@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Suggestion, ParsedPlan } from "@calendar-planner/shared";
 import type { EventFormData } from "../components/EventForm/index.js";
 
@@ -13,10 +13,15 @@ export type CreateState =
   | { kind: "submitting" }
   | { kind: "error"; message: string };
 
+type UndoState =
+  | { kind: "create"; toastId: number; eventId: string }
+  | { kind: "edit"; toastId: number; eventId: string; previous: EventFormData };
+
 export interface UseEventFormDeps {
   fetchWeek: (start: string | null) => Promise<void>;
   startParam: string | null;
-  pushToast: (message: string, tone: "success" | "error") => void;
+  pushToast: (message: string, tone: "success" | "error", action?: { label: string; onClick: () => void }) => number;
+  dismissToast: (id: number) => void;
 }
 
 export interface UseEventFormReturn {
@@ -27,12 +32,36 @@ export interface UseEventFormReturn {
   openEditForm: (eventId: string, event: EventFormData) => void;
   handleFormCancel: () => void;
   handleFormSubmit: (data: EventFormData) => Promise<void>;
+  cancelUndo: () => void;
 }
 
+const UNDO_DURATION_MS = 5000;
+
 export function useEventForm(deps: UseEventFormDeps): UseEventFormReturn {
-  const { fetchWeek, startParam, pushToast } = deps;
+  const { fetchWeek, startParam, pushToast, dismissToast } = deps;
   const [eventForm, setEventForm] = useState<EventFormState>({ kind: "closed" });
   const [createState, setCreateState] = useState<CreateState>({ kind: "idle" });
+  const [undo, setUndo] = useState<UndoState | null>(null);
+  const undoRef = useRef<UndoState | null>(null);
+
+  useEffect(() => {
+    undoRef.current = undo;
+  }, [undo]);
+
+  useEffect(() => {
+    if (!undo) return;
+    const timer = setTimeout(() => {
+      dismissToast(undo.toastId);
+      setUndo(null);
+    }, UNDO_DURATION_MS);
+    return () => clearTimeout(timer);
+  }, [undo, dismissToast]);
+
+  useEffect(() => {
+    if (!undo) return;
+    dismissToast(undo.toastId);
+    setUndo(null);
+  }, [startParam]);
 
   const openManualForm = useCallback(() => {
     setCreateState({ kind: "idle" });
@@ -64,6 +93,59 @@ export function useEventForm(deps: UseEventFormDeps): UseEventFormReturn {
     setCreateState({ kind: "idle" });
   }, [createState]);
 
+  const cancelUndo = useCallback(() => {
+    if (undoRef.current) {
+      dismissToast(undoRef.current.toastId);
+      setUndo(null);
+    }
+  }, [dismissToast]);
+
+  const performUndo = useCallback(async () => {
+    const current = undoRef.current;
+    if (!current) return;
+
+    if (current.kind === "create") {
+      try {
+        const res = await fetch(`/api/events/${current.eventId}`, { method: "DELETE" });
+        if (!res.ok) {
+          const body = (await res.json().catch(() => ({}))) as { message?: string };
+          throw new Error(body.message ?? `HTTP ${res.status}`);
+        }
+        pushToast("Создание отменено", "success");
+        setUndo(null);
+        void fetchWeek(startParam);
+      } catch (e) {
+        const message = e instanceof Error ? e.message : String(e);
+        pushToast(`Не удалось отменить создание: ${message}`, "error");
+      }
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/events/${current.eventId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          slot: { start: current.previous.start, end: current.previous.end },
+          title: current.previous.title,
+          description: current.previous.description,
+          location: current.previous.location,
+          type: current.previous.type,
+        }),
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { message?: string };
+        throw new Error(body.message ?? `HTTP ${res.status}`);
+      }
+      pushToast("Изменения отменены", "success");
+      setUndo(null);
+      void fetchWeek(startParam);
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      pushToast(`Не удалось отменить изменения: ${message}`, "error");
+    }
+  }, [fetchWeek, pushToast, startParam]);
+
   const handleFormSubmit = useCallback(
     async (data: EventFormData) => {
       setCreateState({ kind: "submitting" });
@@ -78,6 +160,7 @@ export function useEventForm(deps: UseEventFormDeps): UseEventFormReturn {
       const isEdit = eventForm.kind === "edit";
       const url = isEdit ? `/api/events/${eventForm.eventId}` : "/api/events";
       const method = isEdit ? "PATCH" : "POST";
+      const previousValues = isEdit ? eventForm.event : undefined;
 
       if (eventForm.kind === "suggestion") {
         body.parsedPlan = eventForm.parsedPlan;
@@ -94,7 +177,25 @@ export function useEventForm(deps: UseEventFormDeps): UseEventFormReturn {
           const resBody = (await res.json().catch(() => ({}))) as { message?: string };
           throw new Error(resBody.message ?? `HTTP ${res.status}`);
         }
-        pushToast(isEdit ? "Событие обновлено" : "Событие создано", "success");
+
+        if (undoRef.current) {
+          dismissToast(undoRef.current.toastId);
+        }
+
+        const action = { label: "Undo", onClick: performUndo };
+        const toastMessage = isEdit ? "Событие обновлено" : "Событие создано";
+        const toastId = pushToast(toastMessage, "success", action);
+
+        const resBody = (await res.json().catch(() => ({}))) as { event?: { id?: string } };
+        const eventId = resBody.event?.id ?? (isEdit ? eventForm.eventId : undefined);
+        if (eventId) {
+          if (isEdit && previousValues) {
+            setUndo({ kind: "edit", toastId, eventId, previous: previousValues });
+          } else {
+            setUndo({ kind: "create", toastId, eventId });
+          }
+        }
+
         setEventForm({ kind: "closed" });
         setCreateState({ kind: "idle" });
         void fetchWeek(startParam);
@@ -104,7 +205,7 @@ export function useEventForm(deps: UseEventFormDeps): UseEventFormReturn {
         pushToast(`Не удалось: ${message}`, "error");
       }
     },
-    [eventForm, pushToast, fetchWeek, startParam],
+    [eventForm, pushToast, fetchWeek, startParam, dismissToast, performUndo],
   );
 
   return {
@@ -115,5 +216,6 @@ export function useEventForm(deps: UseEventFormDeps): UseEventFormReturn {
     openEditForm,
     handleFormCancel,
     handleFormSubmit,
+    cancelUndo,
   };
 }
