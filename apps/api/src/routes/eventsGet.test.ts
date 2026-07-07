@@ -111,6 +111,48 @@ describe("GET /api/events", () => {
     await app.close();
   });
 
+  it("returns only lightweight metadata without description or location", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({ access_token: "ya29.test", expires_in: 3600 }),
+          { status: 200 },
+        ),
+      ),
+    );
+
+    const fakeItems = [
+      {
+        id: "evt-2",
+        calendarId: "primary",
+        summary: "Standup",
+        description: "secret details",
+        location: "Room A",
+        start: { dateTime: "2026-07-08T09:00:00Z" },
+        end: { dateTime: "2026-07-08T09:15:00Z" },
+      },
+    ];
+    const app = await buildApp({ eventsListClientFactory: makeFakeListFactory(fakeItems) });
+    const res = await app.inject({
+      method: "GET",
+      url: "/api/events?from=2026-07-06T00:00:00.000Z&to=2026-07-12T23:59:59.999Z",
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = res.json() as { events: unknown[] };
+    expect(body.events).toHaveLength(1);
+    expect(body.events[0]).toEqual({
+      id: "evt-2",
+      summary: "Standup",
+      start: "2026-07-08T09:00:00Z",
+      end: "2026-07-08T09:15:00Z",
+      allDay: false,
+      type: "meeting",
+    });
+    await app.close();
+  });
+
   it("returns 502 when Google API fails", async () => {
     vi.stubGlobal(
       "fetch",

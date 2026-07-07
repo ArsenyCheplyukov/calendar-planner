@@ -75,7 +75,6 @@ describe("getEvents", () => {
     expect(result).toHaveLength(2);
     expect(result[0]).toEqual({
       id: "evt-1",
-      calendarId: "primary",
       summary: "Standup",
       start: "2026-07-08T09:00:00Z",
       end: "2026-07-08T09:15:00Z",

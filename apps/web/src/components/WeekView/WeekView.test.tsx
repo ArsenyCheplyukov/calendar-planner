@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { render, screen, within } from "@testing-library/react";
+import type { CalendarEvent } from "@calendar-planner/shared";
 import { WeekView, type WeekViewBusyMap, type WeekViewWeek } from "./WeekView.js";
 
 describe("WeekView", () => {
@@ -86,6 +87,70 @@ describe("WeekView", () => {
   it("does not render proposal blocks when no proposals are provided", () => {
     render(<WeekView week={sampleWeek} busy={{}} onPrev={() => {}} onNext={() => {}} onToday={() => {}} />);
     expect(screen.queryAllByTestId("proposal-block")).toHaveLength(0);
+  });
+
+  it("renders event blocks colored by type", () => {
+    const events: CalendarEvent[] = [
+      {
+        id: "evt-focus",
+        summary: "Deep work",
+        start: "2026-07-08T09:00:00Z",
+        end: "2026-07-08T11:00:00Z",
+        allDay: false,
+        type: "focus",
+      },
+      {
+        id: "evt-meeting",
+        summary: "Standup",
+        start: "2026-07-10T09:00:00Z",
+        end: "2026-07-10T09:30:00Z",
+        allDay: false,
+        type: "meeting",
+      },
+    ];
+    render(
+      <WeekView
+        week={sampleWeek}
+        busy={{}}
+        events={events}
+        onPrev={() => {}}
+        onNext={() => {}}
+        onToday={() => {}}
+      />,
+    );
+
+    const blocks = screen.getAllByTestId("event-block");
+    expect(blocks).toHaveLength(2);
+    expect(blocks[0]).toHaveAttribute("data-type", "focus");
+    expect(blocks[0]).toHaveAttribute("data-all-day", "false");
+    expect(blocks[1]).toHaveAttribute("data-type", "meeting");
+  });
+
+  it("renders all-day events distinctly", () => {
+    const events: CalendarEvent[] = [
+      {
+        id: "evt-all-day",
+        summary: "Conference",
+        start: "2026-07-08",
+        end: "2026-07-09",
+        allDay: true,
+        type: "meeting",
+      },
+    ];
+    render(
+      <WeekView
+        week={sampleWeek}
+        busy={{}}
+        events={events}
+        onPrev={() => {}}
+        onNext={() => {}}
+        onToday={() => {}}
+      />,
+    );
+
+    const blocks = screen.getAllByTestId("event-block");
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0]).toHaveAttribute("data-all-day", "true");
   });
 
   it("renders proposal blocks with dashed style and marks the selected one", () => {

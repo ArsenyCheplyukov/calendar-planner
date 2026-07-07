@@ -1,19 +1,10 @@
 import { useEffect } from "react";
-import type { EventType } from "@calendar-planner/shared";
+import type { CalendarEvent } from "@calendar-planner/shared";
 import { Button } from "../Button/index.js";
 import { formatTime, formatDateLong } from "../../lib/time-format.js";
 import styles from "./EventsPopover.module.css";
 
-export interface EventItem {
-  id: string;
-  summary: string;
-  start: string;
-  end: string;
-  allDay?: boolean;
-  type: EventType;
-  description?: string;
-  location?: string;
-}
+export type EventItem = CalendarEvent;
 
 export interface EventsPopoverProps {
   windowStart: string;

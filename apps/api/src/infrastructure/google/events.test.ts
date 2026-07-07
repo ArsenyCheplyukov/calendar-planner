@@ -119,7 +119,7 @@ describe("updateEvent", () => {
       },
     });
     const client: GoogleCalendarClient = {
-      events: { insert: vi.fn(), update, delete: vi.fn() },
+      events: { get: vi.fn(), insert: vi.fn(), update, delete: vi.fn() },
     };
 
     const result = await updateEvent(
@@ -158,7 +158,7 @@ describe("deleteEvent", () => {
   it("calls events.delete with calendarId=primary and the event id", async () => {
     const del = vi.fn().mockResolvedValue({ data: undefined });
     const client: GoogleCalendarClient = {
-      events: { insert: vi.fn(), update: vi.fn(), delete: del },
+      events: { get: vi.fn(), insert: vi.fn(), update: vi.fn(), delete: del },
     };
 
     await deleteEvent("evt-1", "ya29.test", client);

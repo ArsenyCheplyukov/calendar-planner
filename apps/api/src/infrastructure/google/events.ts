@@ -1,9 +1,13 @@
 import type { calendar_v3 } from "googleapis";
 import type { EventType } from "@calendar-planner/shared";
 import { buildGoogleCalendarClient } from "./client.js";
+import { mapGoogleEventType } from "../../domain/event-type.js";
 
 export interface GoogleCalendarClient {
   events: {
+    get?: (
+      params: calendar_v3.Params$Resource$Events$Get,
+    ) => Promise<{ data: calendar_v3.Schema$Event }>;
     insert: (
       params: calendar_v3.Params$Resource$Events$Insert,
     ) => Promise<{ data: calendar_v3.Schema$Event }>;
@@ -49,6 +53,49 @@ export interface CreatedEvent {
 }
 
 export type UpdatedEvent = CreatedEvent;
+
+export interface FullEvent {
+  id: string;
+  summary?: string;
+  description?: string;
+  location?: string;
+  start?: { dateTime?: string; date?: string };
+  end?: { dateTime?: string; date?: string };
+  type?: EventType;
+}
+
+/**
+ * Fetch a single event with full details from the Owner's primary Google Calendar.
+ */
+export async function getEvent(
+  eventId: string,
+  accessToken: string,
+  client: GoogleCalendarClient,
+): Promise<FullEvent> {
+  if (!client.events.get) {
+    throw new Error("Google Calendar client does not support get");
+  }
+  const res = await client.events.get({
+    calendarId: "primary",
+    eventId,
+  });
+
+  const ev = res.data;
+  const privateType = ev.extendedProperties?.private?.["eventType"];
+  return {
+    id: ev.id ?? eventId,
+    summary: ev.summary ?? undefined,
+    description: ev.description ?? undefined,
+    location: ev.location ?? undefined,
+    start: ev.start
+      ? { dateTime: ev.start.dateTime ?? undefined, date: ev.start.date ?? undefined }
+      : undefined,
+    end: ev.end
+      ? { dateTime: ev.end.dateTime ?? undefined, date: ev.end.date ?? undefined }
+      : undefined,
+    type: mapGoogleEventType(ev.eventType, privateType),
+  };
+}
 
 /**
  * Create a new event in the Owner's primary Google Calendar.

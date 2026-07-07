@@ -17,6 +17,7 @@ describe("App event creation flow", () => {
     planResponse?: { parsed?: unknown; suggestions?: unknown[] };
     createResponse?: { event?: unknown; status?: number; body?: unknown };
     eventsResponse?: { events?: unknown[]; status?: number; body?: unknown };
+    getEventResponse?: { event?: unknown; status?: number; body?: unknown };
     patchResponse?: { event?: unknown; status?: number; body?: unknown };
     weekBusy?: BusyMap;
     bufferMinutes?: number;
@@ -86,6 +87,16 @@ describe("App event creation flow", () => {
         const body =
           opts.eventsResponse?.body ?? {
             events: opts.eventsResponse?.events ?? [],
+          };
+        return Promise.resolve(
+          new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } }),
+        );
+      }
+      if (url.includes("/api/events/") && (!init || init.method === undefined || init.method === "GET")) {
+        const status = opts.getEventResponse?.status ?? 200;
+        const body =
+          opts.getEventResponse?.body ?? {
+            event: opts.getEventResponse?.event ?? { id: url.split("/").pop(), summary: "Event" },
           };
         return Promise.resolve(
           new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } }),
@@ -197,6 +208,7 @@ describe("App event creation flow", () => {
       summary: "Original title",
       start: "2026-07-08T09:00:00.000Z",
       end: "2026-07-08T10:00:00.000Z",
+      allDay: false,
       type: "meeting",
     };
     const busy: BusyMap = {
@@ -205,6 +217,17 @@ describe("App event creation flow", () => {
     const fetchMock = buildMock({
       weekBusy: busy,
       eventsResponse: { events: [originalEvent] },
+      getEventResponse: {
+        event: {
+          id: "evt-edit",
+          summary: "Original title",
+          start: { dateTime: "2026-07-08T09:00:00.000Z" },
+          end: { dateTime: "2026-07-08T10:00:00.000Z" },
+          description: "Original description",
+          location: "Original location",
+          type: "meeting",
+        },
+      },
       patchResponse: { event: { id: "evt-edit", summary: "Updated title" } },
     });
     vi.stubGlobal("fetch", fetchMock);

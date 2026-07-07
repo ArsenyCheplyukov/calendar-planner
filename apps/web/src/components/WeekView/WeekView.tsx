@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import type { BusyMap, Suggestion } from "@calendar-planner/shared";
+import type { BusyMap, CalendarEvent, Suggestion } from "@calendar-planner/shared";
 import { getLocalTimeZone } from "@calendar-planner/shared";
 import { Button } from "../Button/index.js";
 import {
@@ -28,12 +28,14 @@ export interface WeekViewProps {
   week: WeekViewWeek;
   busy: BusyMap;
   proposals?: WeekViewProposal[];
+  events?: CalendarEvent[];
   today?: string; // YYYY-MM-DD; defaults to "now" in local time
   onPrev: () => void;
   onNext: () => void;
   onToday: () => void;
   onBlockClick?: (busySlot: { start: string; end: string }) => void;
   onProposalClick?: (candidateId: string) => void;
+  onEventClick?: (event: CalendarEvent) => void;
 }
 
 const DAY_NAMES_RU = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
@@ -42,12 +44,14 @@ export function WeekView({
   week,
   busy,
   proposals = [],
+  events = [],
   today,
   onPrev,
   onNext,
   onToday,
   onBlockClick,
   onProposalClick,
+  onEventClick,
 }: WeekViewProps) {
   const timeZone = getLocalTimeZone();
 
@@ -73,6 +77,18 @@ export function WeekView({
     return map;
   }, [proposals, timeZone]);
 
+  const eventsByDay = useMemo(() => {
+    const map: Record<string, CalendarEvent[]> = {};
+    for (const e of events) {
+      const key = formatYmd(new Date(e.start), timeZone);
+      (map[key] ??= []).push(e);
+    }
+    for (const key of Object.keys(map)) {
+      map[key]!.sort((a, b) => a.start.localeCompare(b.start));
+    }
+    return map;
+  }, [events, timeZone]);
+
   return (
     <div className={styles["week"]} data-testid="week-view">
       <div className={styles["header"]}>
@@ -97,6 +113,7 @@ export function WeekView({
           const key = formatYmd(d, timeZone);
           const dayBusy = busy[key] ?? [];
           const dayProposals = proposalsByDay[key] ?? [];
+          const dayEvents = eventsByDay[key] ?? [];
           const isPast = key < todayKey;
           return (
             <div
@@ -111,10 +128,43 @@ export function WeekView({
                 <span className={styles["day-date"]}>{formatDayOfMonth(d, timeZone)}</span>
               </div>
               <div className={styles["day-body"]}>
-                {dayProposals.length === 0 && dayBusy.length === 0 ? (
+                {dayProposals.length === 0 && dayBusy.length === 0 && dayEvents.length === 0 ? (
                   <span className={styles["empty"]}>—</span>
                 ) : (
                   <>
+                    {dayEvents
+                      .filter((e) => e.allDay)
+                      .map((e, idx) => (
+                        <button
+                          key={`event-all-day-${e.id}-${idx}`}
+                          type="button"
+                          className={`${styles["event-block"]} ${styles["event-block-all-day"]}`}
+                          data-testid="event-block"
+                          data-type={e.type}
+                          data-all-day="true"
+                          onClick={() => onEventClick?.(e)}
+                        >
+                          {e.summary}
+                        </button>
+                      ))}
+                    {dayEvents
+                      .filter((e) => !e.allDay)
+                      .map((e, idx) => (
+                        <button
+                          key={`event-${e.id}-${idx}`}
+                          type="button"
+                          className={styles["event-block"]}
+                          data-testid="event-block"
+                          data-type={e.type}
+                          data-all-day="false"
+                          onClick={() => onEventClick?.(e)}
+                        >
+                          <span className={styles["event-time"]}>
+                            {formatTime(e.start, timeZone)}–{formatTime(e.end, timeZone)}
+                          </span>
+                          <span className={styles["event-title"]}>{e.summary}</span>
+                        </button>
+                      ))}
                     {dayProposals.map((p, idx) => (
                       <button
                         key={`proposal-${p.candidateId}-${idx}`}

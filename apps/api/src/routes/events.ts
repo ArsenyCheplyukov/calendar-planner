@@ -1,8 +1,10 @@
 import type { FastifyInstance } from "fastify";
 import type { EventType, ParsedPlan, Slot } from "@calendar-planner/shared";
+import type { CalendarEvent } from "@calendar-planner/shared";
 import {
   createEvent,
   deleteEvent,
+  getEvent,
   updateEvent,
   type GoogleCalendarClient,
 } from "../infrastructure/google/events.js";
@@ -10,9 +12,8 @@ import {
   buildEventsListClient,
   getEvents,
   type GoogleEventsClient,
-  type ListedEvent,
 } from "../infrastructure/google/getEvents.js";
-import { sendRouteError, upstreamError } from "./error-mapper.js";
+import { notFound, sendRouteError, upstreamError } from "./error-mapper.js";
 
 export type EventsClientFactory = (accessToken: string) => GoogleCalendarClient;
 export type EventsListClientFactory = (accessToken: string) => GoogleEventsClient;
@@ -123,7 +124,7 @@ export async function eventsRoute(
 
       try {
         const client = listFactory(req.accessToken) as GoogleEventsClient;
-        const events: ListedEvent[] = await getEvents(from, to, client);
+        const events: CalendarEvent[] = await getEvents(from, to, client);
         return { events };
       } catch (e) {
         const message = e instanceof Error ? e.message : String(e);
@@ -176,6 +177,38 @@ export async function eventsRoute(
         );
         return { event };
       } catch (e) {
+        const message = e instanceof Error ? e.message : String(e);
+        return sendRouteError(upstreamError(message), reply);
+      }
+    },
+  );
+
+  app.get<{ Params: { id: string } }>(
+    "/api/events/:id",
+    async (req, reply) => {
+      if (!req.accessToken) {
+        return reply.status(401).send({
+          error: "unauthenticated",
+          message: "Run `pnpm auth` to bootstrap credentials.",
+        });
+      }
+
+      try {
+        const client = opts.eventsClientFactory(req.accessToken);
+        const event = await getEvent(req.params.id, req.accessToken, client);
+        return { event };
+      } catch (e) {
+        if (
+          e &&
+          typeof e === "object" &&
+          "response" in e &&
+          e.response &&
+          typeof e.response === "object" &&
+          "status" in e.response &&
+          e.response.status === 404
+        ) {
+          return sendRouteError(notFound("Event not found"), reply);
+        }
         const message = e instanceof Error ? e.message : String(e);
         return sendRouteError(upstreamError(message), reply);
       }

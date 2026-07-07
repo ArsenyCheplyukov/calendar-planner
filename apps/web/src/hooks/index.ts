@@ -4,3 +4,8 @@ export { useEventForm, type UseEventFormReturn, type UseEventFormDeps, type Even
 export { useToasts, type UseToastsReturn, type Toast } from "./useToasts.js";
 export { useEventsPopover, type UseEventsPopoverReturn, type EventsPopoverState } from "./useEventsPopover.js";
 export { usePreferences, type PreferencesState } from "./usePreferences.js";
+export {
+  useCalendarEvents,
+  type UseCalendarEventsReturn,
+  type CalendarEventsState,
+} from "./useCalendarEvents.js";

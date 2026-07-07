@@ -1,5 +1,5 @@
 import type { calendar_v3 } from "googleapis";
-import type { EventType } from "@calendar-planner/shared";
+import type { CalendarEvent } from "@calendar-planner/shared";
 import { buildGoogleCalendarClient } from "./client.js";
 import { mapGoogleEventType } from "../../domain/event-type.js";
 
@@ -16,17 +16,6 @@ export interface GoogleEventsClient {
   };
 }
 
-export interface ListedEvent {
-  id: string;
-  calendarId: string;
-  summary: string;
-  description?: string;
-  start: string; // ISO datetime OR YYYY-MM-DD for all-day
-  end: string;
-  allDay: boolean;
-  type: EventType;
-}
-
 interface RawItem {
   id?: string;
   calendarId?: string;
@@ -41,7 +30,7 @@ interface RawItem {
   end?: { dateTime?: string; date?: string };
 }
 
-function normalizeItem(item: RawItem): ListedEvent | null {
+function normalizeItem(item: RawItem): CalendarEvent | null {
   if (!item.id) return null;
   const startDateTime = item.start?.dateTime;
   const startDate = item.start?.date;
@@ -54,9 +43,7 @@ function normalizeItem(item: RawItem): ListedEvent | null {
   const privateType = item.extendedProperties?.private?.["eventType"];
   return {
     id: item.id,
-    calendarId: item.calendarId ?? "",
     summary: item.summary ?? "(без названия)",
-    description: item.description ?? undefined,
     start,
     end,
     allDay,
@@ -73,11 +60,11 @@ export async function getEvents(
   from: string,
   to: string,
   client: GoogleEventsClient,
-): Promise<ListedEvent[]> {
+): Promise<CalendarEvent[]> {
   const listRes = await client.calendarList.list({});
   const calendars = listRes.data.items ?? [];
 
-  const out: ListedEvent[] = [];
+  const out: CalendarEvent[] = [];
   for (const cal of calendars) {
     if (!cal.id) continue;
     const res = await client.events.list({

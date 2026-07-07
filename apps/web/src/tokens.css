@@ -76,6 +76,17 @@
   --color-suggestion-bg:  oklch(0.80 0.12 100 / 0.12);
   --color-suggestion-border: oklch(0.72 0.13 100 / 0.35);
 
+  /* Event types */
+  --color-event-focus:    oklch(0.78 0.12 100);
+  --color-event-focus-fg: var(--cream-950);
+  --color-event-meeting:  oklch(0.72 0.08 250);
+  --color-event-meeting-fg: var(--cream-950);
+  --color-event-personal: oklch(0.74 0.10 150);
+  --color-event-personal-fg: var(--cream-950);
+  --color-event-errand:   oklch(0.76 0.12 60);
+  --color-event-errand-fg: var(--cream-950);
+  --color-event-all-day-bg: oklch(0.22 0.018 100 / 0.55);
+
   /* States */
   --color-destructive:    var(--red-500);
   --color-destructive-fg: var(--cream-50);

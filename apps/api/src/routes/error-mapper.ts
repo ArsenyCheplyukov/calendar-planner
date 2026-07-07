@@ -3,6 +3,7 @@ import type { FastifyReply } from "fastify";
 export type RouteErrorCode =
   | "bad_request"
   | "unauthenticated"
+  | "not_found"
   | "upstream_error"
   | "internal_error";
 
@@ -24,6 +25,10 @@ export function unauthenticated(message: string): RouteError {
   return new RouteError("unauthenticated", message);
 }
 
+export function notFound(message: string): RouteError {
+  return new RouteError("not_found", message);
+}
+
 export function upstreamError(message: string): RouteError {
   return new RouteError("upstream_error", message);
 }
@@ -35,6 +40,7 @@ export function internalError(message: string): RouteError {
 const STATUS_CODES: Record<RouteErrorCode, number> = {
   bad_request: 400,
   unauthenticated: 401,
+  not_found: 404,
   upstream_error: 502,
   internal_error: 500,
 };

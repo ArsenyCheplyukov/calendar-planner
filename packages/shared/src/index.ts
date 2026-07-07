@@ -89,6 +89,15 @@ export function filterSuggestionsByDay<T extends { start: string }>(
   return suggestions.filter((s) => s.start.slice(0, 10) === dayKey);
 }
 
+export interface CalendarEvent {
+  id: string;
+  summary: string;
+  start: string; // ISO datetime or YYYY-MM-DD for all-day
+  end: string;
+  allDay: boolean;
+  type: EventType;
+}
+
 export interface Preferences {
   workingHoursStart: string; // "HH:MM"
   workingHoursEnd: string;   // "HH:MM"

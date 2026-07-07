@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useRef } from "react";
-import type { PlanCandidate, Suggestion } from "@calendar-planner/shared";
+import type { EventType, PlanCandidate, Suggestion } from "@calendar-planner/shared";
 import { DEFAULT_PREFERENCES } from "@calendar-planner/shared";
 import { Button } from "./components/Button/index.js";
 import { PlanInput } from "./components/PlanInput/index.js";
@@ -16,6 +16,7 @@ import {
   useToasts,
   useEventsPopover,
   usePreferences,
+  useCalendarEvents,
 } from "./hooks/index.js";
 import styles from "./App.module.css";
 
@@ -44,6 +45,14 @@ export function App() {
   } = useEventForm({ fetchWeek, startParam, pushToast, dismissToast });
   const { eventsState, handleBlockClick, handlePopoverClose } = useEventsPopover();
 
+  const eventsRange =
+    weekState.kind === "ready"
+      ? { from: weekState.data.week.start, to: weekState.data.week.end }
+      : { from: undefined, to: undefined };
+  const calendarEventsState = useCalendarEvents(eventsRange);
+  const calendarEvents =
+    calendarEventsState.state.kind === "ready" ? calendarEventsState.state.events : [];
+
   const preferencesState = usePreferences();
   const bufferMinutes =
     preferencesState.kind === "ready"
@@ -56,18 +65,42 @@ export function App() {
   );
 
   const handleEventEdit = useCallback(
-    (event: EventItem) => {
+    async (event: EventItem) => {
       handlePopoverClose();
-      openEditForm(event.id, {
-        title: event.summary,
-        start: event.start,
-        end: event.end,
-        description: event.description ?? "",
-        location: event.location ?? "",
-        type: event.type,
-      });
+      try {
+        const res = await fetch(`/api/events/${event.id}`);
+        if (!res.ok) {
+          const body = (await res.json().catch(() => ({}))) as { message?: string };
+          throw new Error(body.message ?? `HTTP ${res.status}`);
+        }
+        const body = (await res.json()) as {
+          event: {
+            id: string;
+            summary?: string;
+            start?: { dateTime?: string; date?: string };
+            end?: { dateTime?: string; date?: string };
+            description?: string;
+            location?: string;
+            type?: EventType;
+          };
+        };
+        const ev = body.event;
+        const start = ev.start?.dateTime ?? ev.start?.date ?? event.start;
+        const end = ev.end?.dateTime ?? ev.end?.date ?? event.end;
+        openEditForm(ev.id, {
+          title: ev.summary ?? event.summary,
+          start,
+          end,
+          description: ev.description ?? "",
+          location: ev.location ?? "",
+          type: ev.type ?? event.type,
+        });
+      } catch (e) {
+        const message = e instanceof Error ? e.message : String(e);
+        pushToast(`Не удалось загрузить событие: ${message}`, "error");
+      }
     },
-    [handlePopoverClose, openEditForm],
+    [handlePopoverClose, openEditForm, pushToast],
   );
 
   const handleEventDelete = useCallback(
@@ -279,6 +312,7 @@ export function App() {
                 week={weekState.data.week}
                 busy={weekState.data.busy}
                 proposals={proposals}
+                events={calendarEvents}
                 onPrev={handlePrevWithCancel}
                 onNext={handleNextWithCancel}
                 onToday={handleTodayWithCancel}

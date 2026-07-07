@@ -4,8 +4,8 @@ import userEvent from "@testing-library/user-event";
 import { EventsPopover, type EventItem } from "./EventsPopover.js";
 
 const sample: EventItem[] = [
-  { id: "1", summary: "Standup", start: "2026-07-08T09:00:00Z", end: "2026-07-08T09:15:00Z", type: "meeting" },
-  { id: "2", summary: "Coffee chat", start: "2026-07-08T10:00:00Z", end: "2026-07-08T10:30:00Z", type: "personal" },
+  { id: "1", summary: "Standup", start: "2026-07-08T09:00:00Z", end: "2026-07-08T09:15:00Z", allDay: false, type: "meeting" },
+  { id: "2", summary: "Coffee chat", start: "2026-07-08T10:00:00Z", end: "2026-07-08T10:30:00Z", allDay: false, type: "personal" },
 ];
 
 describe("EventsPopover", () => {

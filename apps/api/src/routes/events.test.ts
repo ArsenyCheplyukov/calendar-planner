@@ -6,6 +6,7 @@ import type { GoogleCalendarClient } from "../infrastructure/google/events.js";
 function makeFakeEventsClient(id = "evt-test"): GoogleCalendarClient {
   return {
     events: {
+      get: vi.fn(),
       insert: vi.fn().mockResolvedValue({
         data: {
           id,
@@ -253,7 +254,7 @@ describe("PATCH /api/events/:id", () => {
       },
     });
     const app = await buildApp({
-      eventsClientFactory: () => ({ events: { insert: vi.fn(), update, delete: vi.fn() } }),
+      eventsClientFactory: () => ({ events: { get: vi.fn(), insert: vi.fn(), update, delete: vi.fn() } }),
     });
 
     const res = await app.inject({
@@ -294,7 +295,7 @@ describe("PATCH /api/events/:id", () => {
 
     const app = await buildApp({
       eventsClientFactory: () => ({
-        events: { insert: vi.fn(), update: vi.fn(), delete: vi.fn() },
+        events: { get: vi.fn(), insert: vi.fn(), update: vi.fn(), delete: vi.fn() },
       }),
     });
 
@@ -339,7 +340,7 @@ describe("DELETE /api/events/:id", () => {
 
     const del = vi.fn().mockResolvedValue({ data: undefined });
     const app = await buildApp({
-      eventsClientFactory: () => ({ events: { insert: vi.fn(), update: vi.fn(), delete: del } }),
+      eventsClientFactory: () => ({ events: { get: vi.fn(), insert: vi.fn(), update: vi.fn(), delete: del } }),
     });
 
     const res = await app.inject({
@@ -370,7 +371,7 @@ describe("DELETE /api/events/:id", () => {
 
     const del = vi.fn().mockRejectedValue(new Error("calendar down"));
     const app = await buildApp({
-      eventsClientFactory: () => ({ events: { insert: vi.fn(), update: vi.fn(), delete: del } }),
+      eventsClientFactory: () => ({ events: { get: vi.fn(), insert: vi.fn(), update: vi.fn(), delete: del } }),
     });
 
     const res = await app.inject({
@@ -379,6 +380,158 @@ describe("DELETE /api/events/:id", () => {
     });
 
     expect(res.statusCode).toBe(502);
+    await app.close();
+  });
+});
+
+describe("GET /api/events/:id", () => {
+  let originalEnv: NodeJS.ProcessEnv;
+
+  beforeEach(() => {
+    originalEnv = { ...process.env };
+    process.env["GOOGLE_REFRESH_TOKEN"] = "1//test";
+    process.env["GOOGLE_CLIENT_ID"] = "cid";
+    process.env["GOOGLE_CLIENT_SECRET"] = "csecret";
+  });
+
+  afterEach(() => {
+    process.env = originalEnv;
+    vi.restoreAllMocks();
+  });
+
+  it("returns full event details with a mapped domain type", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({ access_token: "ya29.test", expires_in: 3600 }),
+          { status: 200 },
+        ),
+      ),
+    );
+
+    const get = vi.fn().mockResolvedValue({
+      data: {
+        id: "evt-123",
+        summary: "Standup",
+        description: "Daily sync",
+        location: "Room A",
+        eventType: "focusTime",
+        start: { dateTime: "2026-07-08T09:00:00Z" },
+        end: { dateTime: "2026-07-08T09:30:00Z" },
+      },
+    });
+    const app = await buildApp({
+      eventsClientFactory: () => ({
+        events: { get, insert: vi.fn(), update: vi.fn(), delete: vi.fn() },
+      }),
+    });
+
+    const res = await app.inject({
+      method: "GET",
+      url: "/api/events/evt-123",
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = res.json() as {
+      event: {
+        id: string;
+        summary?: string;
+        description?: string;
+        location?: string;
+        type: string;
+      };
+    };
+    expect(body.event.id).toBe("evt-123");
+    expect(body.event.description).toBe("Daily sync");
+    expect(body.event.location).toBe("Room A");
+    expect(body.event.type).toBe("focus");
+
+    const [params] = get.mock.calls[0]!;
+    expect(params.calendarId).toBe("primary");
+    expect(params.eventId).toBe("evt-123");
+    await app.close();
+  });
+
+  it("returns 404 when Google reports the event is missing", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({ access_token: "ya29.test", expires_in: 3600 }),
+          { status: 200 },
+        ),
+      ),
+    );
+
+    const error = Object.assign(new Error("Not found"), {
+      response: { status: 404 },
+    });
+    const app = await buildApp({
+      eventsClientFactory: () => ({
+        events: {
+          get: vi.fn().mockRejectedValue(error),
+          insert: vi.fn(),
+          update: vi.fn(),
+          delete: vi.fn(),
+        },
+      }),
+    });
+
+    const res = await app.inject({
+      method: "GET",
+      url: "/api/events/evt-missing",
+    });
+
+    expect(res.statusCode).toBe(404);
+    await app.close();
+  });
+
+  it("returns 502 when the Google API call fails", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({ access_token: "ya29.test", expires_in: 3600 }),
+          { status: 200 },
+        ),
+      ),
+    );
+
+    const app = await buildApp({
+      eventsClientFactory: () => ({
+        events: {
+          get: vi.fn().mockRejectedValue(new Error("calendar down")),
+          insert: vi.fn(),
+          update: vi.fn(),
+          delete: vi.fn(),
+        },
+      }),
+    });
+
+    const res = await app.inject({
+      method: "GET",
+      url: "/api/events/evt-123",
+    });
+
+    expect(res.statusCode).toBe(502);
+    await app.close();
+  });
+
+  it("returns 401 without an access token", async () => {
+    delete process.env["GOOGLE_REFRESH_TOKEN"];
+    const app = await buildApp({
+      eventsClientFactory: () => ({
+        events: { get: vi.fn(), insert: vi.fn(), update: vi.fn(), delete: vi.fn() },
+      }),
+    });
+
+    const res = await app.inject({
+      method: "GET",
+      url: "/api/events/evt-123",
+    });
+
+    expect(res.statusCode).toBe(401);
     await app.close();
   });
 });
