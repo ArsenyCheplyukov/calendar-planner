@@ -110,4 +110,39 @@ describe("Suggestions", () => {
     render(<Suggestions suggestions={sample} busy={busy} bufferMinutes={0} onApprove={() => {}} onSelect={() => {}} />);
     expect(screen.queryByTestId("no-clean-slots")).not.toBeInTheDocument();
   });
+
+  it("renders a checkbox on each suggestion card", () => {
+    render(<Suggestions suggestions={sample} onApprove={() => {}} onSelect={() => {}} />);
+    const cards = screen.getAllByTestId("suggestion-card");
+    cards.forEach((card) => {
+      expect(within(card).getByTestId("suggestion-checkbox")).toBeInTheDocument();
+    });
+  });
+
+  it("shows a Create selected button after selecting suggestions", async () => {
+    const user = userEvent.setup();
+    render(<Suggestions suggestions={sample} onApprove={() => {}} onSelect={() => {}} onBulkCreate={() => {}} />);
+
+    expect(screen.queryByRole("button", { name: /create selected/i })).not.toBeInTheDocument();
+
+    const checkboxes = screen.getAllByTestId("suggestion-checkbox");
+    await user.click(checkboxes[0]!);
+    await user.click(checkboxes[2]!);
+
+    expect(screen.getByRole("button", { name: /create selected/i })).toBeInTheDocument();
+  });
+
+  it("calls onBulkCreate with the selected suggestions", async () => {
+    const user = userEvent.setup();
+    const onBulkCreate = vi.fn();
+    render(<Suggestions suggestions={sample} onApprove={() => {}} onSelect={() => {}} onBulkCreate={onBulkCreate} />);
+
+    const checkboxes = screen.getAllByTestId("suggestion-checkbox");
+    await user.click(checkboxes[0]!);
+    await user.click(checkboxes[2]!);
+
+    await user.click(screen.getByRole("button", { name: /create selected/i }));
+
+    expect(onBulkCreate).toHaveBeenCalledWith([sample[0], sample[2]]);
+  });
 });

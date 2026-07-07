@@ -114,6 +114,48 @@ export function App() {
     [planState, openSuggestionForm],
   );
 
+  const handleBulkCreate = useCallback(
+    async (selected: Suggestion[]) => {
+      if (planState.kind !== "ready" || selected.length === 0) return;
+      const candidate = planState.candidates.find(
+        (c) => c.candidateId === planState.selectedCandidateId,
+      );
+      if (!candidate) return;
+
+      let created = 0;
+      const failures: string[] = [];
+      for (const s of selected) {
+        try {
+          const res = await fetch("/api/events", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              slot: { start: s.start, end: s.end },
+              parsedPlan: candidate.parsedPlan,
+              originalPlanText: planState.originalText,
+            }),
+          });
+          if (!res.ok) {
+            const body = (await res.json().catch(() => ({}))) as { message?: string };
+            throw new Error(body.message ?? `HTTP ${res.status}`);
+          }
+          created++;
+        } catch (e) {
+          failures.push(e instanceof Error ? e.message : String(e));
+        }
+      }
+
+      const allFailed = failures.length > 0 && created === 0;
+      const message =
+        failures.length === 0
+          ? `Created ${created} events`
+          : `Created ${created} of ${selected.length}. Failures: ${failures.join(", ")}`;
+      pushToast(message, allFailed ? "error" : "success");
+      void fetchWeek(startParam);
+    },
+    [fetchWeek, planState, pushToast, startParam],
+  );
+
   const proposals: WeekViewProposal[] =
     planState.kind === "ready"
       ? planState.candidates
@@ -201,6 +243,7 @@ export function App() {
                   if (!candidate) return;
                   openSuggestionForm(suggestion, candidate.parsedPlan, planState.originalText);
                 }}
+                onBulkCreate={handleBulkCreate}
               />
             </div>
           </div>

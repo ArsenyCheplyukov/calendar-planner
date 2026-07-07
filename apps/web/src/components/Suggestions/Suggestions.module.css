@@ -84,3 +84,9 @@
   color: var(--color-fg-muted);
   font-size: var(--font-size-sm);
 }
+
+.bulk-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: var(--space-2);
+}

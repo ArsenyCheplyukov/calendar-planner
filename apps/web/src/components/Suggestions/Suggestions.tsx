@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import type { Suggestion, BusyMap } from "@calendar-planner/shared";
 import { hasConflictInBusyMap } from "@calendar-planner/shared";
 import { Button } from "../Button/index.js";
@@ -12,6 +13,7 @@ export interface SuggestionsProps {
   bufferMinutes?: number;
   onApprove: (suggestion: Suggestion) => void;
   onSelect?: (suggestion: Suggestion) => void;
+  onBulkCreate?: (selected: Suggestion[]) => void;
 }
 
 export function Suggestions({
@@ -20,7 +22,31 @@ export function Suggestions({
   bufferMinutes = 0,
   onApprove,
   onSelect,
+  onBulkCreate,
 }: SuggestionsProps) {
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+
+  useEffect(() => {
+    setSelected(new Set());
+  }, [suggestions]);
+
+  const toggleSelected = (idx: number) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(idx)) {
+        next.delete(idx);
+      } else {
+        next.add(idx);
+      }
+      return next;
+    });
+  };
+
+  const handleBulkCreate = () => {
+    const selectedSuggestions = suggestions.filter((_, idx) => selected.has(idx));
+    onBulkCreate?.(selectedSuggestions);
+    setSelected(new Set());
+  };
   if (suggestions.length === 0) {
     return (
       <div className={styles["empty"]} data-testid="suggestions-empty">
@@ -43,6 +69,7 @@ export function Suggestions({
       )}
       {suggestions.map((s, idx) => {
         const isConflict = conflicts[idx];
+        const isSelected = selected.has(idx);
         return (
           <div
             key={`${s.start}-${idx}`}
@@ -50,6 +77,14 @@ export function Suggestions({
             data-testid="suggestion-card"
             onClick={() => onSelect?.(s)}
           >
+            <input
+              type="checkbox"
+              checked={isSelected}
+              onChange={() => toggleSelected(idx)}
+              onClick={(e) => e.stopPropagation()}
+              data-testid="suggestion-checkbox"
+              aria-label={`Select ${formatDayName(s.start)} ${formatTime(s.start)} suggestion`}
+            />
             {isConflict ? (
               <span
                 className={`${styles["badge"]} ${styles["badge-conflict"]}`}
@@ -80,6 +115,18 @@ export function Suggestions({
           </div>
         );
       })}
+      {selected.size > 0 && onBulkCreate && (
+        <div className={styles["bulk-actions"]}>
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={handleBulkCreate}
+            data-testid="bulk-create-button"
+          >
+            Create selected ({selected.size})
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

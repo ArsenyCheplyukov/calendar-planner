@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { render, screen, waitFor, fireEvent, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { App } from "./App.js";
-import type { BusyMap } from "@calendar-planner/shared";
+import type { BusyMap, Suggestion } from "@calendar-planner/shared";
 
 describe("App event creation flow", () => {
   beforeEach(() => {
@@ -650,5 +650,173 @@ describe("App week navigation", () => {
     await waitFor(() => {
       expect(fetchMock.mock.calls.some((c) => String(c[0]).includes("start=2026-07-06"))).toBe(true);
     });
+  });
+});
+
+describe("App bulk create flow", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  function buildBulkMock(opts: {
+    suggestions: Suggestion[];
+    postResponses?: { status: number; body?: unknown }[];
+  }) {
+    let postIndex = 0;
+    return vi.fn().mockImplementation((url: string, init?: RequestInit) => {
+      if (url.includes("/api/week")) {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              week: { start: "2026-07-06T00:00:00.000Z", end: "2026-07-12T23:59:59.999Z" },
+              busy: {},
+            }),
+            { status: 200, headers: { "Content-Type": "application/json" } },
+          ),
+        );
+      }
+      if (url.includes("/api/preferences")) {
+        return Promise.resolve(
+          new Response(JSON.stringify({ bufferMinutes: 15 }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }),
+        );
+      }
+      if (url.includes("/api/plan") && init?.method === "POST") {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              parsed: {
+                title: "Bulk plan",
+                durationMinutes: 60,
+                type: "focus",
+                deadline: null,
+                hint: null,
+              },
+              suggestions: opts.suggestions,
+            }),
+            { status: 200, headers: { "Content-Type": "application/json" } },
+          ),
+        );
+      }
+      if (url.includes("/api/events") && init?.method === "POST") {
+        const response = opts.postResponses?.[postIndex++] ?? {
+          status: 200,
+          body: { event: { id: `evt-${postIndex}`, summary: "Created" } },
+        };
+        return Promise.resolve(
+          new Response(JSON.stringify(response.body ?? {}), {
+            status: response.status,
+            headers: { "Content-Type": "application/json" },
+          }),
+        );
+      }
+      return Promise.reject(new Error("unexpected: " + url));
+    });
+  }
+
+  it("creates an event for each selected suggestion", async () => {
+    const user = userEvent.setup();
+    const suggestions: Suggestion[] = [
+      {
+        start: "2026-07-08T09:00:00.000Z",
+        end: "2026-07-08T10:00:00.000Z",
+        score: 0.8,
+        reason: "ср 09:00–10:00",
+      },
+      {
+        start: "2026-07-09T10:00:00.000Z",
+        end: "2026-07-09T11:00:00.000Z",
+        score: 0.7,
+        reason: "чт 10:00–11:00",
+      },
+    ];
+    const fetchMock = buildBulkMock({ suggestions });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<App />);
+    await waitFor(() => screen.getByTestId("week-view"));
+
+    const textarea = screen.getByRole("textbox", { name: /план/i });
+    await user.type(textarea, "bulk plan");
+    await user.click(screen.getByRole("button", { name: /suggest/i }));
+    await waitFor(() => screen.getByTestId("suggestions-list"));
+
+    const checkboxes = screen.getAllByTestId("suggestion-checkbox");
+    await user.click(checkboxes[0]!);
+    await user.click(checkboxes[1]!);
+
+    await user.click(screen.getByRole("button", { name: /create selected/i }));
+
+    await waitFor(() => {
+      const postCalls = fetchMock.mock.calls.filter(
+        (c) => String(c[0]).includes("/api/events") && (c[1] as RequestInit | undefined)?.method === "POST",
+      );
+      expect(postCalls).toHaveLength(2);
+      const bodies = postCalls.map(
+        (c) => JSON.parse((c[1] as RequestInit).body as string) as { slot?: { start: string; end: string } },
+      );
+      expect(bodies[0]?.slot?.start).toBe("2026-07-08T09:00:00.000Z");
+      expect(bodies[1]?.slot?.start).toBe("2026-07-09T10:00:00.000Z");
+    });
+
+    const toast = await screen.findByTestId("create-toast");
+    expect(toast).toHaveTextContent(/created 2 events/i);
+  });
+
+  it("continues bulk creation and reports failures when one event fails", async () => {
+    const user = userEvent.setup();
+    const suggestions: Suggestion[] = [
+      {
+        start: "2026-07-08T09:00:00.000Z",
+        end: "2026-07-08T10:00:00.000Z",
+        score: 0.8,
+        reason: "ср 09:00–10:00",
+      },
+      {
+        start: "2026-07-09T10:00:00.000Z",
+        end: "2026-07-09T11:00:00.000Z",
+        score: 0.7,
+        reason: "чт 10:00–11:00",
+      },
+    ];
+    const fetchMock = buildBulkMock({
+      suggestions,
+      postResponses: [
+        { status: 500, body: { message: "Upstream error" } },
+        { status: 200, body: { event: { id: "evt-ok", summary: "Created" } } },
+      ],
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<App />);
+    await waitFor(() => screen.getByTestId("week-view"));
+
+    const textarea = screen.getByRole("textbox", { name: /план/i });
+    await user.type(textarea, "bulk plan");
+    await user.click(screen.getByRole("button", { name: /suggest/i }));
+    await waitFor(() => screen.getByTestId("suggestions-list"));
+
+    const checkboxes = screen.getAllByTestId("suggestion-checkbox");
+    await user.click(checkboxes[0]!);
+    await user.click(checkboxes[1]!);
+
+    await user.click(screen.getByRole("button", { name: /create selected/i }));
+
+    await waitFor(() => {
+      const postCalls = fetchMock.mock.calls.filter(
+        (c) => String(c[0]).includes("/api/events") && (c[1] as RequestInit | undefined)?.method === "POST",
+      );
+      expect(postCalls).toHaveLength(2);
+    });
+
+    const toast = await screen.findByTestId("create-toast");
+    expect(toast).toHaveTextContent(/created 1 of 2/i);
+    expect(toast).toHaveTextContent(/upstream error/i);
   });
 });
